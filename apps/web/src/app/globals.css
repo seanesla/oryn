@@ -105,10 +105,80 @@ body {
   isolation: isolate;
 }
 
+.app-bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.app-bg-slot {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.app-bg-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(140% 100% at 50% 0%, transparent 50%, color-mix(in oklab, var(--bg) 34%, transparent) 86%),
+    radial-gradient(140% 120% at 50% 105%, color-mix(in oklab, var(--bg) 48%, transparent) 0%, transparent 52%);
+  z-index: 2;
+}
+
+.app-bg-canvas {
+  position: absolute;
+  inset: -5vh -5vw;
+  width: 110vw;
+  height: 110vh;
+  pointer-events: none;
+}
+
+.app-bg-landing-stack {
+  position: absolute;
+  inset: -5vh -5vw;
+  width: 110vw;
+  height: 110vh;
+  pointer-events: none;
+  overflow: hidden;
+  background: #000;
+}
+
+.app-bg-landing-stack::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background:
+    radial-gradient(130% 100% at 50% 0%, transparent 48%, rgba(0, 0, 0, 0.5) 100%),
+    radial-gradient(160% 120% at 50% 112%, rgba(0, 0, 0, 0.48) 0%, transparent 52%);
+}
+
+.app-bg-landing-slot {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.app-bg-landing-cells {
+  opacity: 0.9;
+}
+
+.app-bg-webgl,
+.app-bg-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+}
+
 .app-bg::before,
 .app-bg::after {
   content: "";
-  position: absolute;
+  position: fixed;
   inset: -10vh -10vw;
   pointer-events: none;
   z-index: 0;
@@ -131,6 +201,15 @@ body {
     linear-gradient(to bottom, color-mix(in oklab, var(--accent) 4%, transparent) 1px, transparent 1px);
   background-size: auto, 38px 38px, 38px 38px;
   opacity: 0.52;
+}
+
+.app-bg-dynamic::after {
+  opacity: 0.015;
+}
+
+.app-bg-dynamic::before {
+  opacity: 0.16;
+  filter: blur(48px);
 }
 
 @keyframes bloom-float {

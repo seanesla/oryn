@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 
-import { History, Mic2, Newspaper } from "lucide-react";
+import { History, Mic2, Newspaper, SlidersHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { listSessions } from "@/lib/sessions";
@@ -12,6 +12,7 @@ import { listSessions } from "@/lib/sessions";
 const items = [
   { id: "co-reading", href: "/app", label: "Co-Reading", icon: Newspaper },
   { id: "history", href: "/history", label: "History", icon: History },
+  { id: "settings", href: "/settings", label: "Settings", icon: SlidersHorizontal },
 ] as const;
 
 export function LeftNav() {
@@ -24,6 +25,7 @@ export function LeftNav() {
     items[0]!,
     { id: "live-talk", href: liveHref, label: "Live Talk", icon: Mic2 },
     items[1]!,
+    items[2]!,
   ];
 
   return (
@@ -36,7 +38,9 @@ export function LeftNav() {
               ? pathname === "/app"
               : item.id === "live-talk"
                 ? pathname.startsWith("/session/")
-                : pathname === "/history";
+                : item.id === "history"
+                  ? pathname === "/history"
+                  : pathname.startsWith("/settings");
           const Icon = item.icon;
           return (
             <Link

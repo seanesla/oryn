@@ -6,6 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 import { enterTransition } from "@/lib/motion";
 
+import { AnimatedBackground } from "@/components/shell/AnimatedBackground";
 import { LeftNav } from "@/components/shell/LeftNav";
 import { TopBar } from "@/components/shell/TopBar";
 
@@ -17,7 +18,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider>
-      <div className="app-bg">
+      <div className="app-bg app-bg-dynamic">
+        <AnimatedBackground landingMode={isLanding} />
         <div className="relative z-10">
           {!isLanding ? <TopBar /> : null}
           <div
