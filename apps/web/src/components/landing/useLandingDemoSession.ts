@@ -10,7 +10,7 @@ import type {
   WsState,
 } from "@/lib/contracts";
 import { makeInitialArtifacts } from "@/lib/mocks/fixtures";
-import type { MockRuntimeActions } from "@/lib/mockStream";
+import type { RuntimeActions } from "@/lib/runtimeTypes";
 
 function demoConstraints(): SessionConstraints {
   return {
@@ -210,7 +210,7 @@ export function useLandingDemoSession() {
     }));
   }, []);
 
-  const actions = useMemo<MockRuntimeActions>(
+  const actions = useMemo<RuntimeActions>(
     () => ({
       startAnalysis,
       regenerateChoiceSet,

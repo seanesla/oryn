@@ -89,13 +89,15 @@ export function SessionSetupPanel() {
       setFetchingMeta(true);
       setDomain(null);
       setTitle(null);
-      await new Promise((r) => setTimeout(r, 650));
-      const guessedTitle = "Article analysis (mock title)";
+      // Lightweight UX delay so the UI doesn't feel like a hard jump.
+      await new Promise((r) => setTimeout(r, 250));
+
+      const guessedTitle = "Co-reading session";
       setDomain(d);
       setTitle(guessedTitle);
       setFetchingMeta(false);
 
-      const session = createSession({ mode, url, title: guessedTitle, constraints });
+      const session = await createSession({ mode, url, title: guessedTitle, constraints });
       router.push(`/session/${session.sessionId}`);
       return;
     }
@@ -105,7 +107,7 @@ export function SessionSetupPanel() {
       return;
     }
 
-    const session = createSession({ mode, title: "Claim check", constraints });
+    const session = await createSession({ mode, title: claimText.trim(), constraints });
     router.push(`/session/${session.sessionId}`);
   }
 
@@ -118,7 +120,7 @@ export function SessionSetupPanel() {
               <div className="text-sm font-semibold tracking-[-0.02em]">Session setup</div>
               <div className="text-xs text-[color:var(--muted-fg)]">Clean start. Strict grounding contract.</div>
             </div>
-            <Badge tone="neutral">Live mocks</Badge>
+            <Badge tone="good">Backend live</Badge>
           </div>
           <Divider className="mt-2" />
         </div>

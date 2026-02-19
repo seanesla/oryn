@@ -51,6 +51,17 @@
   --color-ring: var(--ring);
   --font-sans: var(--font-app-sans);
   --font-serif: var(--font-app-serif);
+
+  --animate-aurora: aurora 60s linear infinite;
+
+  @keyframes aurora {
+    from {
+      background-position: 50% 50%, 50% 50%;
+    }
+    to {
+      background-position: 350% 50%, 350% 50%;
+    }
+  }
 }
 
 @supports (color: oklch(8% 0.01 60)) {
@@ -142,32 +153,6 @@ html.landing-smooth {
     linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 70%, var(--bg)) 100%);
 }
 
-.landing-scene-solid::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 1px;
-  background:
-    linear-gradient(to right, transparent 0%, color-mix(in oklab, var(--accent) 38%, transparent) 18%, color-mix(in oklab, var(--accent-2) 28%, transparent) 50%, color-mix(in oklab, var(--accent) 38%, transparent) 82%, transparent 100%);
-  opacity: 0.9;
-  pointer-events: none;
-}
-
-.landing-scene-solid::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background:
-    linear-gradient(to right, transparent 0%, color-mix(in oklab, var(--accent) 22%, transparent) 18%, color-mix(in oklab, var(--accent-2) 18%, transparent) 50%, color-mix(in oklab, var(--accent) 22%, transparent) 82%, transparent 100%);
-  opacity: 0.7;
-  pointer-events: none;
-}
-
 /* Landing: section-to-section variety (keeps the page from feeling templated). */
 .landing-scene-intro {
   background:
@@ -180,46 +165,22 @@ html.landing-smooth {
 .landing-scene-feature-live {
   background:
     radial-gradient(130% 120% at 10% 10%, color-mix(in oklab, var(--accent) 10%, transparent), transparent 62%),
-    repeating-linear-gradient(
-      to right,
-      color-mix(in oklab, var(--accent) 6%, transparent) 0,
-      color-mix(in oklab, var(--accent) 6%, transparent) 1px,
-      transparent 1px,
-      transparent 22px
-    ),
+    radial-gradient(120% 120% at 92% 16%, color-mix(in oklab, var(--accent-2) 8%, transparent), transparent 64%),
     linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 68%, var(--bg)) 100%);
 }
 
 .landing-scene-feature-trace {
   background:
     radial-gradient(120% 120% at 88% 8%, color-mix(in oklab, var(--accent-2) 10%, transparent), transparent 62%),
-    repeating-linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--accent) 5%, transparent) 0,
-      color-mix(in oklab, var(--accent) 5%, transparent) 1px,
-      transparent 1px,
-      transparent 26px
-    ),
-    repeating-linear-gradient(
-      to right,
-      color-mix(in oklab, var(--accent-2) 4%, transparent) 0,
-      color-mix(in oklab, var(--accent-2) 4%, transparent) 1px,
-      transparent 1px,
-      transparent 26px
-    ),
+    radial-gradient(120% 120% at 16% 22%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 64%),
+    radial-gradient(120% 90% at 50% 110%, color-mix(in oklab, var(--bg) 55%, transparent), transparent 70%),
     linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 70%, var(--bg)) 100%);
 }
 
 .landing-scene-feature-contract {
   background:
     radial-gradient(120% 120% at 14% 14%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 62%),
-    repeating-linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--accent-2) 6%, transparent) 0,
-      color-mix(in oklab, var(--accent-2) 6%, transparent) 2px,
-      transparent 2px,
-      transparent 16px
-    ),
+    radial-gradient(120% 120% at 90% 12%, color-mix(in oklab, var(--accent-2) 8%, transparent), transparent 66%),
     linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 72%, var(--bg)) 100%);
 }
 
@@ -227,13 +188,7 @@ html.landing-smooth {
   background:
     radial-gradient(120% 120% at 10% 0%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 62%),
     radial-gradient(120% 120% at 92% 18%, color-mix(in oklab, var(--accent-2) 7%, transparent), transparent 64%),
-    repeating-linear-gradient(
-      to bottom,
-      color-mix(in oklab, var(--border) 18%, transparent) 0,
-      color-mix(in oklab, var(--border) 18%, transparent) 1px,
-      transparent 1px,
-      transparent 34px
-    ),
+    radial-gradient(140% 90% at 50% 112%, color-mix(in oklab, var(--bg) 60%, transparent) 0%, transparent 52%),
     linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 72%, var(--bg)) 100%);
 }
 
@@ -241,13 +196,7 @@ html.landing-smooth {
   background:
     radial-gradient(130% 120% at 22% 0%, color-mix(in oklab, var(--accent) 10%, transparent), transparent 62%),
     radial-gradient(120% 120% at 84% 20%, color-mix(in oklab, var(--accent-2) 8%, transparent), transparent 64%),
-    repeating-linear-gradient(
-      45deg,
-      color-mix(in oklab, var(--accent) 6%, transparent) 0,
-      color-mix(in oklab, var(--accent) 6%, transparent) 1px,
-      transparent 1px,
-      transparent 20px
-    ),
+    radial-gradient(120% 90% at 50% 110%, color-mix(in oklab, var(--bg) 55%, transparent), transparent 70%),
     linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 70%, var(--bg)) 100%);
 }
 
@@ -270,27 +219,7 @@ html.landing-smooth {
 /* Landing: editorial text block with a rail + aura (less "card/pill"). */
 .landing-text-rail {
   isolation: isolate;
-  padding-left: 1.5rem;
-}
-
-.landing-text-rail::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.35rem;
-  bottom: 0.35rem;
-  width: 1px;
-  background:
-    linear-gradient(
-      to bottom,
-      transparent 0%,
-      color-mix(in oklab, var(--accent) 38%, transparent) 18%,
-      color-mix(in oklab, var(--accent-2) 24%, transparent) 52%,
-      color-mix(in oklab, var(--accent) 34%, transparent) 82%,
-      transparent 100%
-    );
-  opacity: 0.75;
-  pointer-events: none;
+  padding-left: 0.9rem;
 }
 
 .landing-text-rail::after {
@@ -307,16 +236,6 @@ html.landing-smooth {
   filter: blur(10px);
   z-index: -1;
   pointer-events: none;
-}
-
-/* Subtle HUD grid overlay for framed surfaces. */
-.hud-grid {
-  background-image:
-    linear-gradient(to right, color-mix(in oklab, var(--accent) 7%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in oklab, var(--accent) 5%, transparent) 1px, transparent 1px),
-    radial-gradient(120% 90% at 50% 0%, color-mix(in oklab, var(--accent) 14%, transparent), transparent 58%);
-  background-size: 36px 36px, 36px 36px, auto;
-  background-position: 0 0, 0 0, 50% 0;
 }
 
 .app-bg-slot {

@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useReducedMotion, motion } from "motion/react";
 
 import type { SessionArtifacts, TranscriptChunk } from "@/lib/contracts";
-import type { MockRuntimeActions } from "@/lib/mockStream";
+import type { RuntimeActions } from "@/lib/runtimeTypes";
 import { cn } from "@/lib/cn";
 
 import { Badge } from "@/components/ui/Badge";
@@ -31,7 +31,7 @@ export function LandingDemoDock({
   className,
 }: {
   session: SessionArtifacts;
-  actions: MockRuntimeActions;
+  actions: RuntimeActions;
   icon: React.ReactNode;
   label: string;
   title: string;
@@ -58,7 +58,6 @@ export function LandingDemoDock({
 
   return (
     <div className={cn("relative", className)}>
-      <div aria-hidden className="hud-grid pointer-events-none absolute inset-0 rounded-[28px_10px_28px_10px] opacity-[0.18]" />
       <div className="shine-card relative overflow-hidden rounded-[28px_10px_28px_10px] p-6">
         <div
           aria-hidden

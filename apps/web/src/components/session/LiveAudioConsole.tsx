@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 
 import type { SessionArtifacts, TranscriptChunk } from "@/lib/contracts";
-import type { MockRuntimeActions } from "@/lib/mockStream";
+import { apiBaseUrl } from "@/lib/api";
+import type { RuntimeActions } from "@/lib/runtimeTypes";
 import { cn } from "@/lib/cn";
 
 import { Card } from "@/components/ui/Card";
@@ -61,7 +62,7 @@ export function LiveAudioConsole({
   actions,
 }: {
   session: SessionArtifacts;
-  actions: MockRuntimeActions;
+  actions: RuntimeActions;
 }) {
   const shouldReduceMotion = useReducedMotion();
   const [permission, setPermission] = useState<PermissionState>("unknown");
@@ -74,16 +75,64 @@ export function LiveAudioConsole({
   const [muted, setMuted] = useState(false);
 
   const [lastMessageType, setLastMessageType] = useState("-");
+  const [lastError, setLastError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
-  const agentTimersRef = useRef<Array<number>>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+  const recordingRef = useRef(false);
+
+  const inputCtxRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+
+  const outputCtxRef = useRef<AudioContext | null>(null);
+  const outputGainRef = useRef<GainNode | null>(null);
+  const scheduledSourcesRef = useRef<Array<AudioBufferSourceNode>>([]);
+  const playheadRef = useRef<number>(0);
+  const agentSpeakingTimerRef = useRef<number | null>(null);
 
   const turns = useMemo(() => groupTurns(session.transcript), [session.transcript]);
 
+  type LiveWsMessage =
+    | { type: "audio.chunk"; mimeType: string; dataBase64: string }
+    | { type: "debug"; message: string }
+    | { type: "error"; message: string }
+    | { type: string; [k: string]: unknown };
+
+  useEffect(() => {
+    const gain = outputGainRef.current;
+    if (!gain) return;
+    gain.gain.value = muted ? 0 : Math.max(0, Math.min(1, volume / 100));
+  }, [muted, volume]);
+
   useEffect(() => {
     return () => {
-      agentTimersRef.current.forEach((t) => window.clearTimeout(t));
-      agentTimersRef.current = [];
+      if (agentSpeakingTimerRef.current) window.clearTimeout(agentSpeakingTimerRef.current);
+      agentSpeakingTimerRef.current = null;
+
+      try {
+        wsRef.current?.close();
+      } catch {
+        // ignore
+      }
+      wsRef.current = null;
+
+      scheduledSourcesRef.current.forEach((s) => {
+        try {
+          s.stop();
+        } catch {
+          // ignore
+        }
+      });
+      scheduledSourcesRef.current = [];
+
+      processorRef.current?.disconnect();
+      processorRef.current = null;
+      inputCtxRef.current?.close().catch(() => {});
+      inputCtxRef.current = null;
+      outputCtxRef.current?.close().catch(() => {});
+      outputCtxRef.current = null;
+      outputGainRef.current = null;
+
       for (const track of streamRef.current?.getTracks() ?? []) track.stop();
       streamRef.current = null;
     };
@@ -105,52 +154,194 @@ export function LiveAudioConsole({
     }
   }
 
-  function stopAgentSpeechTimers() {
-    agentTimersRef.current.forEach((t) => window.clearTimeout(t));
-    agentTimersRef.current = [];
+  function wsUrlForSession(sessionId: string) {
+    const http = apiBaseUrl();
+    const wsBase = http.startsWith("https://")
+      ? `wss://${http.slice("https://".length)}`
+      : http.startsWith("http://")
+        ? `ws://${http.slice("http://".length)}`
+        : http;
+    return `${wsBase}/v1/sessions/${sessionId}/live`;
   }
 
-  function simulateAgentResponse() {
-    stopAgentSpeechTimers();
-    setAgentSpeaking(true);
+  function parsePcmRate(mimeType: string): number {
+    const m = mimeType.match(/rate=(\d+)/);
+    const n = m?.[1] ? Number(m[1]) : NaN;
+    return Number.isFinite(n) ? n : 24000;
+  }
 
-    const turnId = `agent_${Date.now()}`;
-    const start = Date.now();
-    const lines = [
-      "I can’t treat the article as a single dispute — it’s at least three: measurement, causality, and values.",
-      "I’m building evidence cards now and will flag what’s missing as explicit gaps.",
-    ];
+  function base64ToBytes(b64: string) {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+    return out;
+  }
 
-    let text = "";
-    let idx = 0;
-    const tick = () => {
-      text = `${text}${(text ? " " : "")}${lines[idx]}`;
-      idx += 1;
-      setLastMessageType("transcript.agent.partial");
-      actions.appendTranscript({
-        speaker: "agent",
-        text,
-        timestampMs: Date.now(),
-        isPartial: idx < lines.length,
-        turnId,
-      });
+  function bytesToBase64(bytes: Uint8Array) {
+    let binary = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      const slice = bytes.subarray(i, i + chunk);
+      binary += String.fromCharCode(...slice);
+    }
+    return btoa(binary);
+  }
 
-      if (idx >= lines.length) {
-        setLastMessageType("transcript.agent.final");
-        setAgentSpeaking(false);
-        return;
+  function floatTo16BitPCMBytes(input: Float32Array) {
+    const out = new Uint8Array(input.length * 2);
+    const view = new DataView(out.buffer);
+    for (let i = 0; i < input.length; i += 1) {
+      const s = Math.max(-1, Math.min(1, input[i] ?? 0));
+      view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return out;
+  }
+
+  function resampleLinear(input: Float32Array, fromRate: number, toRate: number) {
+    if (fromRate === toRate) return input;
+    const ratio = fromRate / toRate;
+    const outLen = Math.max(1, Math.round(input.length / ratio));
+    const out = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i += 1) {
+      const x = i * ratio;
+      const i0 = Math.floor(x);
+      const i1 = Math.min(i0 + 1, input.length - 1);
+      const frac = x - i0;
+      const a = input[i0] ?? 0;
+      const b = input[i1] ?? 0;
+      out[i] = a + (b - a) * frac;
+    }
+    return out;
+  }
+
+  function stopOutputImmediately() {
+    scheduledSourcesRef.current.forEach((s) => {
+      try {
+        s.stop();
+      } catch {
+        // ignore
       }
-      agentTimersRef.current.push(window.setTimeout(tick, 680));
+    });
+    scheduledSourcesRef.current = [];
+    const ctx = outputCtxRef.current;
+    if (ctx) playheadRef.current = ctx.currentTime;
+  }
+
+  function ensureOutput() {
+    if (outputCtxRef.current && outputGainRef.current) return;
+    const ctx = new AudioContext();
+    const gain = ctx.createGain();
+    gain.gain.value = muted ? 0 : Math.max(0, Math.min(1, volume / 100));
+    gain.connect(ctx.destination);
+    outputCtxRef.current = ctx;
+    outputGainRef.current = gain;
+    playheadRef.current = ctx.currentTime;
+    void ctx.resume().catch(() => {});
+  }
+
+  function schedulePcmPlayback(opts: { dataBase64: string; mimeType: string }) {
+    if (recordingRef.current) return;
+    ensureOutput();
+    const ctx = outputCtxRef.current;
+    const gain = outputGainRef.current;
+    if (!ctx || !gain) return;
+
+    const rate = parsePcmRate(opts.mimeType);
+    const bytes = base64ToBytes(opts.dataBase64);
+
+    // Assume signed 16-bit little endian PCM.
+    const sampleCount = Math.floor(bytes.length / 2);
+    const floats = new Float32Array(sampleCount);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let i = 0; i < sampleCount; i += 1) {
+      const v = view.getInt16(i * 2, true);
+      floats[i] = v / 0x8000;
+    }
+
+    const buffer = ctx.createBuffer(1, floats.length, rate);
+    buffer.copyToChannel(floats, 0);
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(gain);
+
+    const startAt = Math.max(ctx.currentTime, playheadRef.current);
+    source.start(startAt);
+    playheadRef.current = startAt + buffer.duration;
+    scheduledSourcesRef.current.push(source);
+
+    setAgentSpeaking(true);
+    if (agentSpeakingTimerRef.current) window.clearTimeout(agentSpeakingTimerRef.current);
+    agentSpeakingTimerRef.current = window.setTimeout(() => {
+      setAgentSpeaking(false);
+      agentSpeakingTimerRef.current = null;
+    }, Math.max(250, Math.round(buffer.duration * 1000) + 220));
+  }
+
+  async function ensureWsConnected() {
+    const existing = wsRef.current;
+    if (existing && existing.readyState === WebSocket.OPEN) return existing;
+    if (existing && existing.readyState === WebSocket.CONNECTING) return existing;
+
+    const ws = new WebSocket(wsUrlForSession(session.sessionId));
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setLastMessageType("ws.open");
+      setLastError(null);
+      actions.setWsState("connected");
+      ws.send(JSON.stringify({ type: "control.start", mimeType: "audio/pcm;rate=16000" }));
     };
 
-    agentTimersRef.current.push(window.setTimeout(tick, Math.max(250, start ? 420 : 420)));
+    ws.onmessage = (ev) => {
+      const raw = String(ev.data);
+      let parsed: unknown = null;
+      try {
+        parsed = JSON.parse(raw) as unknown;
+      } catch {
+        parsed = null;
+      }
+      if (!parsed || typeof parsed !== "object") return;
+      const msg = parsed as LiveWsMessage;
+      if (typeof msg.type !== "string") return;
+
+      setLastMessageType(msg.type);
+
+      if (msg.type === "audio.chunk") {
+        if (typeof msg.dataBase64 !== "string" || typeof msg.mimeType !== "string") return;
+        schedulePcmPlayback({ dataBase64: msg.dataBase64, mimeType: msg.mimeType });
+        return;
+      }
+      if (msg.type === "debug" || msg.type === "error") {
+        if (msg.type === "error") {
+          const m = (msg as { message?: unknown }).message;
+          if (typeof m === "string") setLastError(m);
+        }
+        // Show in debug panel via lastMessageType.
+        return;
+      }
+    };
+
+    ws.onerror = () => {
+      setLastMessageType("ws.error");
+      setLastError("WebSocket error (check backend logs)");
+      actions.setWsState("reconnecting");
+    };
+
+    ws.onclose = () => {
+      setLastMessageType("ws.close");
+      actions.setWsState("offline");
+      wsRef.current = null;
+    };
+
+    return ws;
   }
 
   async function handleStartStop() {
     if (!recording) {
       if (agentSpeaking) {
         setInterrupting(true);
-        stopAgentSpeechTimers();
+        stopOutputImmediately();
         setAgentSpeaking(false);
         window.setTimeout(() => setInterrupting(false), 900);
       }
@@ -158,40 +349,70 @@ export function LiveAudioConsole({
       const ok = await ensureMicPermission();
       if (!ok) return;
 
+      await ensureWsConnected();
+
+      // Start capturing PCM audio and streaming to backend.
+      const ctx = new AudioContext({ sampleRate: 16000 });
+      inputCtxRef.current = ctx;
+      await ctx.resume().catch(() => {});
+
+      const src = ctx.createMediaStreamSource(streamRef.current!);
+      const processor = ctx.createScriptProcessor(2048, 1, 1);
+      processorRef.current = processor;
+
+      processor.onaudioprocess = (e) => {
+        const ws = wsRef.current;
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const inData = e.inputBuffer.getChannelData(0);
+        const resampled = resampleLinear(inData, ctx.sampleRate, 16000);
+        const pcmBytes = floatTo16BitPCMBytes(resampled);
+        const dataBase64 = bytesToBase64(pcmBytes);
+        ws.send(
+          JSON.stringify({
+            type: "audio.chunk",
+            mimeType: "audio/pcm;rate=16000",
+            dataBase64,
+          })
+        );
+      };
+
+      src.connect(processor);
+      // Keep the processor alive without echoing to speakers.
+      const zero = ctx.createGain();
+      zero.gain.value = 0;
+      processor.connect(zero);
+      zero.connect(ctx.destination);
+
       setRecording(true);
-
-      const turnId = `user_${Date.now()}`;
-      setLastMessageType("transcript.user.partial");
-      actions.appendTranscript({
-        speaker: "user",
-        text: "What’s missing here…",
-        timestampMs: Date.now(),
-        isPartial: true,
-        turnId,
-      });
-
-      window.setTimeout(() => {
-        setLastMessageType("transcript.user.final");
-        actions.appendTranscript({
-          speaker: "user",
-          text: "What’s missing here? Give me the strongest counter-frame and show your trace.",
-          timestampMs: Date.now(),
-          isPartial: false,
-          turnId,
-        });
-        simulateAgentResponse();
-      }, 520);
-
+      recordingRef.current = true;
       return;
     }
 
     setRecording(false);
+    recordingRef.current = false;
+
+    // Stop audio input.
+    try {
+      processorRef.current?.disconnect();
+    } catch {
+      // ignore
+    }
+    processorRef.current = null;
+    inputCtxRef.current?.close().catch(() => {});
+    inputCtxRef.current = null;
+
+    // Tell backend we're done.
+    try {
+      wsRef.current?.send(JSON.stringify({ type: "control.stop" }));
+    } catch {
+      // ignore
+    }
+
     for (const track of streamRef.current?.getTracks() ?? []) track.stop();
     streamRef.current = null;
   }
 
-  const tokenExpirySeconds = 15 * 60;
-  const tokenCountdown = formatTime(tokenExpirySeconds * 1000);
+  const tokenCountdown = formatTime(15 * 60 * 1000);
 
   return (
     <Card className="p-4">
@@ -213,6 +434,12 @@ export function LiveAudioConsole({
       </div>
 
       <Divider className="my-4" />
+
+      {lastError ? (
+        <div className="rounded-[var(--radius-sm)] border border-[color:color-mix(in_oklab,var(--bad)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--bad)_10%,var(--card))] p-3 text-sm text-[color:var(--fg)]">
+          {lastError}
+        </div>
+      ) : null}
 
       <AnimatePresence initial={false}>
         {permission === "denied" ? (
@@ -406,24 +633,24 @@ export function LiveAudioConsole({
               transition={{ duration: 0.2 }}
               className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_84%,transparent)] p-3 text-xs text-[color:var(--muted-fg)]"
             >
-              <div className="mb-2 flex items-center justify-between">
-                <div className="text-[color:var(--fg)]">Debug</div>
-                <div className="text-[11px]">mock stream</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                  WebSocket state: <span className="text-[color:var(--fg)]">{session.wsState}</span>
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-[color:var(--fg)]">Debug</div>
+                  <div className="text-[11px]">backend live</div>
                 </div>
-                <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                  Last message: <span className="text-[color:var(--fg)]">{lastMessageType}</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
+                    WebSocket state: <span className="text-[color:var(--fg)]">{session.wsState}</span>
+                  </div>
+                  <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
+                    Last message: <span className="text-[color:var(--fg)]">{lastMessageType}</span>
+                  </div>
+                  <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
+                    Token expiry (approx): <span className="text-[color:var(--fg)]">{tokenCountdown}</span>
+                  </div>
+                  <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
+                    Output: <span className="text-[color:var(--fg)]">{muted ? "muted" : `vol ${volume}`}</span>
+                  </div>
                 </div>
-                <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                  Token expiry (mock): <span className="text-[color:var(--fg)]">{tokenCountdown}</span>
-                </div>
-                <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                  Output: <span className="text-[color:var(--fg)]">{muted ? "muted" : `vol ${volume}`}</span>
-                </div>
-              </div>
             </motion.div>
           ) : null}
         </AnimatePresence>

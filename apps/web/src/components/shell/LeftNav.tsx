@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 
 import { History, Mic2, Newspaper, SlidersHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/cn";
-import { listSessions } from "@/lib/sessions";
+import { listSessions, refreshSessions } from "@/lib/sessions";
 
 const items = [
   { id: "co-reading", href: "/app", label: "Co-Reading", icon: Newspaper },
@@ -17,7 +18,17 @@ const items = [
 
 export function LeftNav() {
   const pathname = usePathname();
-  const last = typeof window !== "undefined" ? listSessions()[0] : undefined;
+
+  const [cached, setCached] = useState(() => (typeof window !== "undefined" ? listSessions() : []));
+  useEffect(() => {
+    refreshSessions(10)
+      .then((list) => setCached(list))
+      .catch(() => {
+        // keep cached
+      });
+  }, []);
+
+  const last = cached[0];
   const hasLiveSession = Boolean(last?.sessionId);
   const liveHref = hasLiveSession ? `/session/${last?.sessionId}` : "/app";
 
@@ -74,7 +85,7 @@ export function LeftNav() {
       </div>
 
       <div className="mt-6 rounded-[0.6rem] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-3)_90%,transparent)] p-3 text-xs text-[color:var(--muted-fg)]">
-        UI is running on mocks right now. Backend wiring is just swapping the stream source.
+        Sessions stream from the backend (SSE) and Live voice uses a backend WebSocket proxy.
       </div>
     </aside>
   );

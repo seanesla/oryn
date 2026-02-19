@@ -14,15 +14,18 @@ import { EpistemicContractPanel } from "@/components/contract/EpistemicContractP
 import { TracePanel } from "@/components/trace/TracePanel";
 import { LiveAudioConsole } from "@/components/session/LiveAudioConsole";
 import { enterTransition } from "@/lib/motion";
-import { useMockSessionRuntime } from "@/lib/mockStream";
+import { useSessionRuntime } from "@/lib/useSessionRuntime";
 
 export function SessionClient({ sessionId }: { sessionId: string }) {
-  const { runtime, actions } = useMockSessionRuntime(sessionId);
+  const { runtime, actions } = useSessionRuntime(sessionId);
   const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
+    if (!runtime.state) return;
+    if (runtime.state.pipeline.evidenceBuilding) return;
+    if (runtime.state.evidenceCards.length > 0) return;
     actions.startAnalysis();
-  }, [actions]);
+  }, [actions, runtime.state]);
 
   const s = runtime.state;
 

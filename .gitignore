@@ -7,3 +7,5 @@ dist/
 # local state
 .env
 .env.*
+!.env.example
+!**/.env.example

@@ -2,12 +2,20 @@
   "name": "oryn",
   "private": true,
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
-    "dev": "npm --prefix apps/web run dev",
+    "dev": "concurrently -n api,web -c auto \"npm --prefix apps/api run dev\" \"npm --prefix apps/web run dev\"",
+    "dev:web": "npm --prefix apps/web run dev",
+    "dev:api": "npm --prefix apps/api run dev",
     "build": "npm --prefix apps/web run build",
     "start": "npm --prefix apps/web run start",
-    "lint": "npm --prefix apps/web run lint"
+    "lint": "npm --prefix apps/web run lint && npm --prefix apps/api run lint",
+    "test": "npm --prefix apps/api run test",
+    "typecheck": "npm --prefix apps/api run typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

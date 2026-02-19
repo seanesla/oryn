@@ -1,6 +1,7 @@
 "use client";
 
 import type { SessionArtifacts, SessionConstraints, SessionListItem, SessionMode } from "@/lib/contracts";
+import { apiFetch } from "@/lib/api";
 import { readJson, writeJson } from "@/lib/storage";
 
 const SESSIONS_KEY = "oryn:sessions:v1";
@@ -20,9 +21,27 @@ export function listSessions(): Array<SessionListItem> {
   return readJson<Array<SessionListItem>>(LIST_KEY, []).slice(0, 10);
 }
 
+export async function refreshSessions(limit = 10): Promise<Array<SessionListItem>> {
+  const res = await apiFetch(`/v1/sessions?limit=${encodeURIComponent(String(limit))}`);
+  const list = (await res.json()) as Array<SessionListItem>;
+  writeJson(LIST_KEY, list.slice(0, 10));
+  return list.slice(0, 10);
+}
+
 export function getSession(sessionId: string): SessionArtifacts | null {
   const map = readJson<Record<string, SessionArtifacts>>(SESSIONS_KEY, {});
   return map[sessionId] ?? null;
+}
+
+export async function fetchSession(sessionId: string): Promise<SessionArtifacts | null> {
+  try {
+    const res = await apiFetch(`/v1/sessions/${sessionId}`);
+    const s = (await res.json()) as SessionArtifacts;
+    upsertSession(s);
+    return s;
+  } catch {
+    return null;
+  }
 }
 
 export function upsertSession(artifacts: SessionArtifacts) {
@@ -45,42 +64,24 @@ export function upsertSession(artifacts: SessionArtifacts) {
   writeJson(LIST_KEY, [item, ...without].slice(0, 10));
 }
 
-export function createSession(input: {
+export async function createSession(input: {
   mode: SessionMode;
   url?: string;
   title?: string;
   constraints?: SessionConstraints;
-}): SessionArtifacts {
-  const sessionId = globalThis.crypto?.randomUUID?.() ?? `sess_${Date.now()}`;
-  const createdAtMs = Date.now();
+}): Promise<SessionArtifacts> {
   const constraints = input.constraints ?? defaultConstraints();
-
-  const artifacts: SessionArtifacts = {
-    sessionId,
-    createdAtMs,
-    mode: input.mode,
-    url: input.url,
-    title: input.title,
-    domain: undefined,
-    constraints,
-    pipeline: {
-      contentExtracted: false,
-      claimsExtracted: false,
-      evidenceBuilding: false,
-    },
-    wsState: "connected",
-    latencyMs: { current: 58, p50: 64 },
-    transcript: [],
-    evidenceCards: [],
-    clusters: [],
-    choiceSet: [],
-    trace: { toolCalls: [], cardInputs: {} },
-    epistemic: {
-      unsupportedClaims: 0,
-      citationsUsed: 0,
-    },
-  };
-
-  upsertSession(artifacts);
-  return artifacts;
+  const res = await apiFetch(`/v1/sessions`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      mode: input.mode,
+      url: input.url,
+      title: input.title,
+      constraints,
+    }),
+  });
+  const created = (await res.json()) as SessionArtifacts;
+  upsertSession(created);
+  return created;
 }

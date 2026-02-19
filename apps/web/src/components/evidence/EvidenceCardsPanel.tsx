@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import type { DisagreementType, EvidenceCard, SessionArtifacts } from "@/lib/contracts";
-import type { MockRuntimeActions } from "@/lib/mockStream";
+import type { RuntimeActions } from "@/lib/runtimeTypes";
 import { cn } from "@/lib/cn";
 
 import { Badge } from "@/components/ui/Badge";
@@ -60,7 +60,7 @@ export function EvidenceCardsPanel({
   actions,
 }: {
   session: SessionArtifacts;
-  actions: MockRuntimeActions;
+  actions: RuntimeActions;
 }) {
   const shouldReduceMotion = useReducedMotion();
   const [sortBy, setSortBy] = useState<"confidence" | "dispute">("confidence");
@@ -448,7 +448,7 @@ function FollowUpDialog({
   actions,
 }: {
   session: SessionArtifacts;
-  actions: MockRuntimeActions;
+  actions: RuntimeActions;
 }) {
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -457,7 +457,7 @@ function FollowUpDialog({
     <DialogContent>
       <div className="text-sm font-semibold tracking-[-0.02em]">Ask a follow-up question</div>
       <div className="mt-1 text-xs text-[color:var(--muted-fg)]">
-        This gets appended as a user turn. (Mock)
+        This gets appended as a user turn.
       </div>
       <Divider className="my-3" />
       <textarea

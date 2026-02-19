@@ -6,7 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { RefreshCcw, Sparkles, ExternalLink } from "lucide-react";
 
 import type { SessionArtifacts } from "@/lib/contracts";
-import type { MockRuntimeActions } from "@/lib/mockStream";
+import type { RuntimeActions } from "@/lib/runtimeTypes";
 import { cn } from "@/lib/cn";
 
 import { Badge } from "@/components/ui/Badge";
@@ -20,7 +20,7 @@ export function ChoiceSetPanel({
   actions,
 }: {
   session: SessionArtifacts;
-  actions: MockRuntimeActions;
+  actions: RuntimeActions;
 }) {
   const shouldReduceMotion = useReducedMotion();
   const items = useMemo(() => session.choiceSet.slice(0, 3), [session.choiceSet]);

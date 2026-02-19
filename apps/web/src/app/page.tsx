@@ -14,15 +14,8 @@ import {
 } from "lucide-react";
 
 import { LandingDemoDock } from "@/components/landing/LandingDemoDock";
-import {
-  CutAccordionCascade,
-  CutCTAStamp,
-  CutGateLock,
-  CutIrisPortal,
-  CutTraceScan,
-  CutTabsGlitch,
-  CutWaveSweep,
-} from "@/components/landing/SceneCuts";
+import { AuroraUnderlay } from "@/components/landing/AuroraUnderlay";
+import { ReactBitsGalaxy } from "@/components/landing/ReactBitsGalaxy";
 import { useLandingDemoSession } from "@/components/landing/useLandingDemoSession";
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/Accordion";
@@ -211,27 +204,6 @@ export default function HomePage() {
   );
 }
 
-function FrameCorners({ inset = 18, size = 18, opacity = 0.55 }: { inset?: number; size?: number; opacity?: number }) {
-  const common: React.CSSProperties = {
-    position: "absolute",
-    width: size,
-    height: size,
-    borderColor: "color-mix(in oklab, var(--accent) 32%, var(--border))",
-    borderStyle: "solid",
-    opacity,
-    pointerEvents: "none",
-  };
-
-  return (
-    <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-      <div style={{ ...common, left: inset, top: inset, borderLeftWidth: 1, borderTopWidth: 1 }} />
-      <div style={{ ...common, right: inset, top: inset, borderRightWidth: 1, borderTopWidth: 1 }} />
-      <div style={{ ...common, left: inset, bottom: inset, borderLeftWidth: 1, borderBottomWidth: 1 }} />
-      <div style={{ ...common, right: inset, bottom: inset, borderRightWidth: 1, borderBottomWidth: 1 }} />
-    </div>
-  );
-}
-
 // ── Hero ──────────────────────────────────────────────────────────────────────
 
 function HeroSection() {
@@ -372,8 +344,6 @@ function FeaturesIntroScene() {
   const exitBlur = useTransform(scrollYProgress, [0.75, 1], [0, 12]);
   const exitFilter = useMotionTemplate`blur(${exitBlur}px)`;
 
-  const cutProgress = useTransform(scrollYProgress, [0.6, 1], [0, 1]);
-
   useEffect(() => {
     const label = labelRef.current;
     if (!label) return;
@@ -492,8 +462,6 @@ function FeaturesIntroScene() {
             </div>
           </div>
         </div>
-
-        <CutIrisPortal progress={cutProgress} />
       </motion.div>
     </section>
   );
@@ -529,8 +497,6 @@ function FeatureStrip({
   const exitY = useTransform(scrollYProgress, [0, 1], [0, -70]);
   const exitBlur = useTransform(scrollYProgress, [0.76, 1], [0, 14]);
   const exitFilter = useMotionTemplate`blur(${exitBlur}px)`;
-
-  const cutProgress = useTransform(scrollYProgress, [0.7, 1], [0, 1]);
 
   const bgClass =
     cardVariant === 0
@@ -664,10 +630,6 @@ function FeatureStrip({
             </motion.div>
           </div>
         </div>
-
-        {cardVariant === 0 ? <CutWaveSweep progress={cutProgress} /> : null}
-        {cardVariant === 1 ? <CutTraceScan progress={cutProgress} /> : null}
-        {cardVariant === 2 ? <CutGateLock progress={cutProgress} /> : null}
       </motion.div>
     </section>
   );
@@ -689,8 +651,6 @@ function HowItWorksSection({ demo }: { demo: LandingDemo }) {
   const exitY = useTransform(scrollYProgress, [0, 1], [0, -70]);
   const exitBlur = useTransform(scrollYProgress, [0.76, 1], [0, 14]);
   const exitFilter = useMotionTemplate`blur(${exitBlur}px)`;
-
-  const cutProgress = useTransform(scrollYProgress, [0.72, 1], [0, 1]);
 
   useEffect(() => {
     const label = labelRef.current;
@@ -770,7 +730,6 @@ function HowItWorksSection({ demo }: { demo: LandingDemo }) {
           </div>
         </div>
 
-        <CutTabsGlitch progress={cutProgress} />
       </motion.div>
     </section>
   );
@@ -792,8 +751,6 @@ function UseCasesSection() {
   const exitY = useTransform(scrollYProgress, [0, 1], [0, -70]);
   const exitBlur = useTransform(scrollYProgress, [0.76, 1], [0, 14]);
   const exitFilter = useMotionTemplate`blur(${exitBlur}px)`;
-
-  const cutProgress = useTransform(scrollYProgress, [0.72, 1], [0, 1]);
 
   useEffect(() => {
     const label = labelRef.current;
@@ -823,7 +780,20 @@ function UseCasesSection() {
         style={{ opacity: exitOpacity, y: exitY, scale: exitScale, filter: exitFilter }}
         className="relative mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-10 lg:sticky lg:top-0 lg:flex lg:h-screen lg:items-center"
       >
-        <div className="w-full">
+        <ReactBitsGalaxy
+          className="absolute inset-0 z-0 opacity-[0.6]"
+          mouseInteraction={false}
+          density={2.8}
+          speed={0.5}
+          saturation={1}
+          hueShift={120}
+          glowIntensity={0.3}
+          twinkleIntensity={0.3}
+          rotationSpeed={0.1}
+          starSpeed={0.5}
+          transparent
+        />
+        <div className="relative z-10 w-full">
           <div ref={labelRef} className="section-label" style={{ opacity: 0 }}>
             Use cases
           </div>
@@ -916,7 +886,6 @@ function UseCasesSection() {
           </div>
         </div>
 
-        <CutAccordionCascade progress={cutProgress} />
       </motion.div>
     </section>
   );
@@ -938,8 +907,6 @@ function FAQSection() {
   const exitY = useTransform(scrollYProgress, [0, 1], [0, -70]);
   const exitBlur = useTransform(scrollYProgress, [0.76, 1], [0, 14]);
   const exitFilter = useMotionTemplate`blur(${exitBlur}px)`;
-
-  const cutProgress = useTransform(scrollYProgress, [0.72, 1], [0, 1]);
 
   useEffect(() => {
     const label = labelRef.current;
@@ -1020,7 +987,6 @@ function FAQSection() {
           </div>
         </div>
 
-        <CutCTAStamp progress={cutProgress} />
       </motion.div>
     </section>
   );
@@ -1068,7 +1034,8 @@ function ClosingSection() {
         style={{ opacity: exitOpacity, y: exitY, scale: exitScale, filter: exitFilter }}
         className="relative mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-10 lg:sticky lg:top-0 lg:flex lg:h-screen lg:items-center"
       >
-        <div className="w-full">
+        <AuroraUnderlay className="z-0 opacity-[0.62]" showRadialGradient />
+        <div className="relative z-10 w-full">
           <div
             ref={ref}
             className="w-full"
@@ -1076,9 +1043,6 @@ function ClosingSection() {
           >
             <div className="mx-auto w-full max-w-6xl">
               <div className="relative overflow-hidden rounded-[32px_12px_32px_12px] border border-[color:color-mix(in_oklab,var(--border)_64%,transparent)] bg-[color:color-mix(in_oklab,var(--surface-2)_20%,transparent)] px-6 py-10 backdrop-blur-[26px] backdrop-saturate-[165%] sm:px-10 sm:py-12">
-                <div aria-hidden className="hud-grid pointer-events-none absolute inset-0 opacity-[0.18]" />
-                <FrameCorners inset={20} size={20} opacity={0.55} />
-
                 <div className="relative grid gap-10 md:grid-cols-[1.6fr_1fr] md:items-end">
                   <div className="text-left">
                     <div className="section-label">High-trust decision support</div>

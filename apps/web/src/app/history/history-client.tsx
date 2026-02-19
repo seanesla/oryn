@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 
 import { Clock, ExternalLink, History } from "lucide-react";
 
-import { listSessions } from "@/lib/sessions";
+import { listSessions, refreshSessions } from "@/lib/sessions";
 
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
@@ -17,7 +17,15 @@ function fmt(ms: number) {
 }
 
 export function HistoryClient() {
-  const sessions = useMemo(() => listSessions(), []);
+  const [sessions, setSessions] = useState(() => listSessions());
+
+  useEffect(() => {
+    refreshSessions(10)
+      .then((list) => setSessions(list))
+      .catch(() => {
+        // Keep cached list.
+      });
+  }, []);
 
   return (
     <div className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-16 pt-10 sm:px-8">
@@ -25,7 +33,7 @@ export function HistoryClient() {
       <div className="panel-elevated mt-3 mb-6 flex flex-wrap items-end justify-between gap-4 rounded-[0.9rem] p-5">
         <div>
           <div className="font-serif text-[clamp(1.35rem,3.2vw,2rem)] leading-tight tracking-[-0.02em]">History</div>
-          <div className="mt-2 text-sm text-[color:var(--muted-fg)]">Last 10 sessions (local snapshots).</div>
+          <div className="mt-2 text-sm text-[color:var(--muted-fg)]">Last 10 sessions (from backend).</div>
         </div>
         <Badge tone="accent">
           <History className="h-3.5 w-3.5" />

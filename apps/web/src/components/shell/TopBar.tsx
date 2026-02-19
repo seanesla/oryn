@@ -12,7 +12,7 @@ import { AccentPicker } from "@/components/shell/AccentPicker";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import type { SessionArtifacts, WsState } from "@/lib/contracts";
-import { getSession } from "@/lib/sessions";
+import { fetchSession, getSession } from "@/lib/sessions";
 
 function wsTone(ws: WsState) {
   if (ws === "connected") return "good";
@@ -44,6 +44,9 @@ export function TopBar() {
 
   useEffect(() => {
     if (!sessionId) return;
+    fetchSession(sessionId).catch(() => {
+      // keep cached
+    });
     const interval = window.setInterval(() => forceRerender((x) => x + 1), 800);
     return () => window.clearInterval(interval);
   }, [sessionId]);
