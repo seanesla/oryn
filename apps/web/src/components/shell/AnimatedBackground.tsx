@@ -114,7 +114,7 @@ export function AnimatedBackground({ landingMode = false }: { landingMode?: bool
   if (!mounted) return null;
 
   return (
-    <div className="app-bg-layer" aria-hidden>
+    <div className={landingMode ? "app-bg-layer app-bg-layer-landing" : "app-bg-layer"} aria-hidden>
       <AnimatePresence mode="wait" initial={false}>
         {landingMode ? (
           <motion.div
