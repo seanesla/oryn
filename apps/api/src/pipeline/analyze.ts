@@ -134,7 +134,7 @@ async function groundedSearch(queryText: string): Promise<{ hits: Array<SearchHi
   } catch {
     return { hits: [], resultsCount: 0 };
   }
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+  const model = (process.env.GEMINI_MODEL ?? "").trim() || "gemini-2.0-flash";
   const resp = await ai.models.generateContent({
     model,
     contents: queryText,

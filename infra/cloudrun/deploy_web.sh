@@ -1,43 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deploy the API (apps/api) to Cloud Run.
+# Deploy the Web UI (apps/web) to Cloud Run.
 #
 # Usage:
-#   infra/cloudrun/deploy_api.sh YOUR_GCP_PROJECT_ID [REGION]
-#
-# Auth options:
-#
-# (Recommended) Vertex AI (no API key on Cloud Run):
-#   export GOOGLE_GENAI_USE_VERTEXAI=true
-#   export GOOGLE_CLOUD_LOCATION=us-central1
-#
-# (Alternative) Gemini Developer API:
-#   export GEMINI_API_KEY=...
-#
-# Optional:
-#   GEMINI_LIVE_MODEL
-#   GEMINI_MODEL
-#   GEMINI_VOICE_NAME
-#   CORS_ORIGIN
-#   SESSION_STORE (memory|firestore)
-#   FIRESTORE_SESSIONS_COLLECTION
+#   infra/cloudrun/deploy_web.sh YOUR_GCP_PROJECT_ID NEXT_PUBLIC_API_BASE_URL [REGION]
 
 PROJECT_ID=${1:?"Missing PROJECT_ID"}
-REGION=${2:-us-central1}
-SERVICE_NAME=oryn-api
+API_BASE_URL=${2:?"Missing NEXT_PUBLIC_API_BASE_URL"}
+REGION=${3:-us-central1}
+
+SERVICE_NAME=oryn-web
 REPO_NAME=oryn
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}"
 
 echo "Setting gcloud project: ${PROJECT_ID}"
 gcloud config set project "${PROJECT_ID}" --quiet
 
-echo "Enabling required APIs (Run, Build, Artifact Registry, Vertex AI)"
+echo "Enabling required APIs (Run, Build, Artifact Registry)"
 gcloud services enable \
   run.googleapis.com \
   cloudbuild.googleapis.com \
   artifactregistry.googleapis.com \
-  aiplatform.googleapis.com \
   --project "${PROJECT_ID}" \
   --quiet
 
@@ -53,6 +37,10 @@ gcloud artifacts repositories describe "${REPO_NAME}" \
     --description "oryn container images" \
     --quiet
 
+PROJECT_NUMBER=$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')
+CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+RUN_SA_AGENT="service-${PROJECT_NUMBER}@serverless-robot-prod.iam.gserviceaccount.com"
+
 SA_NAME=oryn-cloudrun
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
@@ -64,17 +52,6 @@ gcloud iam service-accounts describe "${SA_EMAIL}" \
     --project "${PROJECT_ID}" \
     --display-name "oryn Cloud Run runtime" \
     --quiet
-
-echo "Granting Vertex AI user role to: ${SA_EMAIL}"
-gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
-  --member "serviceAccount:${SA_EMAIL}" \
-  --role "roles/aiplatform.user" \
-  --quiet
-
-echo "Building container image: ${IMAGE}"
-PROJECT_NUMBER=$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')
-CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
-RUN_SA_AGENT="service-${PROJECT_NUMBER}@serverless-robot-prod.iam.gserviceaccount.com"
 
 echo "Granting Artifact Registry write to Cloud Build SA: ${CB_SA}"
 gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
@@ -92,10 +69,11 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
   --role "roles/artifactregistry.reader" \
   --quiet
 
+echo "Building container image: ${IMAGE}"
 gcloud builds submit . \
   --project "${PROJECT_ID}" \
-  --config "apps/api/cloudbuild.yaml" \
-  --substitutions "_IMAGE=${IMAGE}" \
+  --config "apps/web/cloudbuild.yaml" \
+  --substitutions "_IMAGE=${IMAGE},_NEXT_PUBLIC_API_BASE_URL=${API_BASE_URL}" \
   --quiet
 
 echo "Deploying to Cloud Run: ${SERVICE_NAME} (${REGION})"
@@ -107,16 +85,6 @@ gcloud run deploy "${SERVICE_NAME}" \
   --service-account "${SA_EMAIL}" \
   --min-instances 0 \
   --max-instances 1 \
-  --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-true}" \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID}" \
-  --set-env-vars "GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-${REGION}}" \
-  --set-env-vars "GEMINI_API_KEY=${GEMINI_API_KEY:-}" \
-  --set-env-vars "GEMINI_LIVE_MODEL=${GEMINI_LIVE_MODEL:-}" \
-  --set-env-vars "GEMINI_MODEL=${GEMINI_MODEL:-}" \
-  --set-env-vars "GEMINI_VOICE_NAME=${GEMINI_VOICE_NAME:-}" \
-  --set-env-vars "CORS_ORIGIN=${CORS_ORIGIN:-}" \
-  --set-env-vars "SESSION_STORE=${SESSION_STORE:-}" \
-  --set-env-vars "FIRESTORE_SESSIONS_COLLECTION=${FIRESTORE_SESSIONS_COLLECTION:-}" \
   --quiet
 
 echo "Done. Fetch service URL:"

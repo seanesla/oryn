@@ -10,7 +10,12 @@ COPY package.json package-lock.json ./
 COPY apps ./apps
 COPY packages ./packages
 
-RUN npm ci
+RUN npm ci --include=dev
+
+# Cloud Run needs our start script, which uses tsx.
+# Keep devDependencies in the image for hackathon/demo simplicity.
+# (Production hardening would compile to dist and run node.)
+
 
 EXPOSE 8080
 

@@ -23,6 +23,8 @@ export async function buildServer() {
   });
 
   await server.register(cors, {
+    // Use onRequest so streaming responses (SSE) still get CORS headers.
+    hook: "onRequest",
     origin: (origin, cb) => {
       // Allow non-browser clients (tests, curl)
       if (!origin) return cb(null, true);

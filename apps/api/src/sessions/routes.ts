@@ -168,6 +168,24 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
     const session = await store.get(sessionId);
     if (!session) return reply.code(404).send({ error: "Session not found" });
 
+    // @fastify/cors sets headers late in the lifecycle by default.
+    // For SSE we start streaming immediately, so we must set CORS headers
+    // before writing anything.
+    const origin = (req.headers.origin as string | undefined) ?? "";
+    if (origin) {
+      const allow = [
+        process.env.CORS_ORIGIN,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+      ].filter(Boolean);
+
+      if (allow.includes(origin)) {
+        reply.raw.setHeader("Vary", "Origin");
+        reply.raw.setHeader("Access-Control-Allow-Origin", origin);
+        reply.raw.setHeader("Access-Control-Allow-Credentials", "true");
+      }
+    }
+
     reply.raw.setHeader("Content-Type", "text/event-stream");
     reply.raw.setHeader("Cache-Control", "no-cache, no-transform");
     reply.raw.setHeader("Connection", "keep-alive");

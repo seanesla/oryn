@@ -86,6 +86,12 @@ This repo includes a simple Cloud Run deploy script for the API.
 infra/cloudrun/deploy_api.sh YOUR_GCP_PROJECT_ID us-central1
 ```
 
+Deploy the web UI to Cloud Run too:
+
+```bash
+infra/cloudrun/deploy_web.sh YOUR_GCP_PROJECT_ID https://YOUR_API_RUN_URL us-central1
+```
+
 Notes:
 
 - Cloud Run/Build/Vertex AI require **billing enabled**. Small demo usage is usually low-cost, but it is not guaranteed to be $0.
@@ -94,6 +100,12 @@ Notes:
 
 ```bash
 infra/cloudrun/cleanup_api.sh YOUR_GCP_PROJECT_ID us-central1
+```
+
+Cleanup everything (api + web + container repo):
+
+```bash
+infra/cloudrun/cleanup_all.sh YOUR_GCP_PROJECT_ID us-central1
 ```
 
 After deploy, set your web env:

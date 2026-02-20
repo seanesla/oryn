@@ -147,31 +147,37 @@ export async function registerLiveRoutes(server: FastifyInstance) {
 
         const { ai, mode } = created;
 
-        const model =
-          process.env.GEMINI_LIVE_MODEL ??
-          (mode === "vertex" ? "gemini-2.0-flash-live-preview-04-09" : "gemini-live-2.5-flash-preview");
-        const voiceName = process.env.GEMINI_VOICE_NAME ?? "Aoede";
+        const modelOverride = process.env.GEMINI_LIVE_MODEL;
+        const model = modelOverride?.trim()
+          ? modelOverride.trim()
+          : mode === "vertex"
+            ? "gemini-2.0-flash-live-preview-04-09"
+            : "gemini-live-2.5-flash-preview";
+
+        const voiceOverride = process.env.GEMINI_VOICE_NAME;
+        const voiceName = voiceOverride?.trim() ? voiceOverride.trim() : "Aoede";
 
         const sys = makeSystemInstruction(session);
 
-        live = await ai.live.connect({
-          model,
-          config: {
-            responseModalities: [Modality.AUDIO],
-            inputAudioTranscription: {},
-            outputAudioTranscription: {},
-            speechConfig: {
-              languageCode: "en-US",
-              voiceConfig: { prebuiltVoiceConfig: { voiceName } },
+        try {
+          live = await ai.live.connect({
+            model,
+            config: {
+              responseModalities: [Modality.AUDIO],
+              inputAudioTranscription: {},
+              outputAudioTranscription: {},
+              speechConfig: {
+                languageCode: "en-US",
+                voiceConfig: { prebuiltVoiceConfig: { voiceName } },
+              },
+              systemInstruction: sys,
+              tools: [{ functionDeclarations: liveFunctionDeclarations }],
             },
-            systemInstruction: sys,
-            tools: [{ functionDeclarations: liveFunctionDeclarations }],
-          },
-          callbacks: {
-            onopen: () => {
-              send(ws, { type: "debug", message: "Gemini Live connected" });
-            },
-            onmessage: (message: GenaiLiveServerMessage) => {
+            callbacks: {
+              onopen: () => {
+                send(ws, { type: "debug", message: "Gemini Live connected" });
+              },
+              onmessage: (message: GenaiLiveServerMessage) => {
               const content: any = message.serverContent;
               if (content?.interrupted) {
                 send(ws, { type: "debug", message: "model interrupted" });
@@ -269,15 +275,20 @@ export async function registerLiveRoutes(server: FastifyInstance) {
                   }
                 })();
               }
+              },
+              onerror: (e: any) => {
+                send(ws, { type: "error", message: e?.message ?? "live error" });
+              },
+              onclose: (e: any) => {
+                send(ws, { type: "debug", message: `Gemini Live closed (${e?.code ?? "?"})` });
+              },
             },
-            onerror: (e: any) => {
-              send(ws, { type: "error", message: e?.message ?? "live error" });
-            },
-            onclose: (e: any) => {
-              send(ws, { type: "debug", message: `Gemini Live closed (${e?.code ?? "?"})` });
-            },
-          },
-        });
+          });
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Gemini Live connect failed";
+          send(ws, { type: "error", message: msg });
+          return null;
+        }
 
         return live;
       }
