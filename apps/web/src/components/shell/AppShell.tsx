@@ -1,11 +1,13 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { TooltipProvider } from "@/components/ui/Tooltip";
 import { enterTransition } from "@/lib/motion";
 
+import { LandingIntro } from "@/components/landing/LandingIntro";
 import { LandingStickyBackgroundStage } from "@/components/landing/LandingStickyBackgroundStage";
 import { GsapLenisProvider } from "@/components/landing/GsapLenisProvider";
 import { AnimatedBackground } from "@/components/shell/AnimatedBackground";
@@ -16,6 +18,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const shouldReduceMotion = useReducedMotion();
   const isLanding = pathname === "/";
+  const [introComplete, setIntroComplete] = useState(!isLanding || Boolean(shouldReduceMotion));
+  const handleIntroComplete = useCallback(() => setIntroComplete(true), []);
 
   const shellContent = (
     <div className="relative z-10">
@@ -60,6 +64,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className={isLanding ? "app-bg app-bg-dynamic app-bg-landing-page" : "app-bg app-bg-dynamic"}>
         {!isLanding ? <AnimatedBackground /> : null}
         {isLanding ? <LandingStickyBackgroundStage /> : null}
+        {isLanding && !introComplete ? (
+          <LandingIntro onComplete={handleIntroComplete} />
+        ) : null}
         {isLanding && !shouldReduceMotion ? <GsapLenisProvider>{shellContent}</GsapLenisProvider> : shellContent}
       </div>
     </TooltipProvider>

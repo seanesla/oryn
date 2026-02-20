@@ -24,7 +24,7 @@ const FEATURES: FeatureBlock[] = [
     icon: <AudioLines className="h-10 w-10 sm:h-12 sm:w-12" />,
     label: "Live session",
     title: "Voice-native, instant interruption",
-    body: "Talk naturally while Oryn listens, analyzes, and structures your conversation into a live transcript — updating evidence cards in real time.",
+    body: "Talk naturally while oryn listens, analyzes, and structures your conversation into a live transcript — updating evidence cards in real time.",
     accentVar: "--accent",
   },
   {
@@ -175,7 +175,7 @@ export function FeaturesGridSection() {
             data-feat-body
             className="mt-7 max-w-[58ch] text-[15px] leading-relaxed text-[color:var(--muted-fg)]"
           >
-            Oryn is built for high-stakes reading: it turns disagreement into explicit dispute
+            oryn is built for high-stakes reading: it turns disagreement into explicit dispute
             types, forces{" "}
             <span className="text-gradient font-medium">evidence cards</span>, and keeps the{" "}
             <span className="text-gradient font-medium">retrieval trace</span> visible.

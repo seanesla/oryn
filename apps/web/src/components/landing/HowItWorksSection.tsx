@@ -18,7 +18,7 @@ const STEPS = [
   {
     num: "02",
     label: "Review",
-    text: "Oryn surfaces evidence cards with counter-frames — grounded claims, not summaries.",
+    text: "oryn surfaces evidence cards with counter-frames — grounded claims, not summaries.",
   },
   {
     num: "03",

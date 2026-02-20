@@ -176,6 +176,16 @@ html.lenis body {
   isolation: isolate;
 }
 
+/*
+ * GSAP inserts `.pin-spacer` wrappers for pinned sections.
+ * On some displays subpixel rounding can reveal faint seams at spacer edges
+ * while pinned elements are transformed. Clipping the spacer keeps the
+ * landing flow visually continuous.
+ */
+.pin-spacer {
+  overflow: hidden;
+}
+
 /* Subtle readability veil over the sticky cosmic stage (neutral, no accent gradients). */
 .landing-scene-solid {
   background: color-mix(in oklab, var(--bg) 18%, transparent);
@@ -216,6 +226,28 @@ html.lenis body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Animated shimmer that sweeps across gradient text */
+@keyframes gradient-shimmer {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+.text-gradient-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    var(--accent-2) 25%,
+    #fff 50%,
+    var(--accent-2) 75%,
+    var(--accent) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shimmer 5s ease-in-out infinite;
 }
 
 /* Subtle readability darkening behind open-canvas text (not a visible box) */
@@ -516,22 +548,7 @@ html.lenis body {
   -webkit-backdrop-filter: blur(30px) saturate(175%);
 }
 
-/* ── Hero readability scrim (darkens left side without killing the galaxy) ── */
-.landing-hero-scrim {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    radial-gradient(90% 80% at 12% 38%, color-mix(in oklab, var(--bg) 88%, transparent) 0%, transparent 60%),
-    linear-gradient(
-      to right,
-      color-mix(in oklab, var(--bg) 92%, transparent) 0%,
-      color-mix(in oklab, var(--bg) 82%, transparent) 34%,
-      color-mix(in oklab, var(--bg) 40%, transparent) 58%,
-      transparent 72%
-    );
-}
+/* (hero scrim removed — galaxy background provides natural contrast for centered text) */
 
 /* ── Cycle background button ── */
 .landing-cycle-btn {
