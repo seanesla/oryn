@@ -181,17 +181,17 @@ export function UseCasesSection() {
         });
       };
 
-      const tl = gsap.timeline({
-        defaults: { ease: "none" },
-        scrollTrigger: {
-          trigger: sectionRef.current,
-          start: "top top",
-          end: () => "+=" + window.innerHeight * 2.6,
-          pin: true,
-          scrub: true,
-          invalidateOnRefresh: true,
-        },
-      });
+       const tl = gsap.timeline({
+         defaults: { ease: "none" },
+         scrollTrigger: {
+           trigger: sectionRef.current,
+           start: "top top",
+           end: () => "+=" + window.innerHeight * 2.0,
+           pin: true,
+           scrub: true,
+           invalidateOnRefresh: true,
+         },
+       });
 
       /* ── Entrance: staggered line reveal + content fade ── */
       tl.to(label, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power3.out" }, 0)
@@ -235,7 +235,7 @@ export function UseCasesSection() {
         .addLabel("exit", ">")
         .to(
           sectionRef.current.querySelector("[data-use-inner]")!,
-          { scale: 0.92, autoAlpha: 0, duration: 0.24, ease: "power3.in" },
+          { scale: 0.96, autoAlpha: 0, duration: 0.1, ease: "power3.in" },
           "exit",
         );
 

@@ -7,7 +7,7 @@ import { useReducedMotion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
-import { ScrollTrigger, SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
+import { SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
 
 registerGsapPlugins();
 
@@ -21,8 +21,6 @@ export function ClosingSection() {
     () => {
       if (reducedMotion) return;
       if (!sectionRef.current) return;
-
-      const sectionEl = sectionRef.current;
 
       const logo = sectionRef.current.querySelector<HTMLElement>("[data-closing-logo]");
       const headline = sectionRef.current.querySelector<HTMLElement>("[data-closing-headline]");
@@ -47,28 +45,28 @@ export function ClosingSection() {
       gsap.set(body, { autoAlpha: 0, y: 20 });
       gsap.set(ctas, { autoAlpha: 0, y: 20 });
 
-      // Phase 1: scrubbed entrance while the section scrolls into view.
-      // This prevents the "vanilla scroll gap" between the previous pin ending
-      // and this pin starting — content is visibly animating during that range.
-      const enterTl = gsap.timeline({
+      // No pin — this is the last section. Content animates in as it scrolls
+      // into view and stays put. Pinning would create a duplicate because
+      // the pin-spacer repositions the section after release.
+      const tl = gsap.timeline({
         defaults: { ease: "none" },
         scrollTrigger: {
-          trigger: sectionEl,
-          start: "top bottom",
-          end: "top top",
+          trigger: sectionRef.current,
+          start: "top 80%",
+          end: "center center",
           scrub: true,
           invalidateOnRefresh: true,
         },
       });
 
-      enterTl
-        .to(
+      /* ── Entrance: logo, headline chars, body, CTAs ── */
+      tl.to(
           logo,
           {
             autoAlpha: 1,
             scale: 1,
             y: 0,
-            duration: 0.3,
+            duration: 0.2,
             ease: "back.out(1.4)",
           },
           0,
@@ -79,10 +77,10 @@ export function ClosingSection() {
             scale: 1,
             autoAlpha: 1,
             filter: "blur(0px)",
-            duration: 0.42,
+            duration: 0.3,
             ease: "power3.out",
           },
-          0.06,
+          0.04,
         )
         .to(
           chars,
@@ -90,44 +88,16 @@ export function ClosingSection() {
             autoAlpha: 1,
             scale: 1,
             stagger: { each: 0.015, from: "random" },
-            duration: 0.34,
+            duration: 0.24,
             ease: "back.out(1.7)",
           },
-          0.12,
+          0.08,
         )
-        .to(body, { autoAlpha: 1, y: 0, duration: 0.26, ease: "power3.out" }, 0.48)
-        .to(ctas, { autoAlpha: 1, y: 0, duration: 0.22, ease: "power3.out" }, 0.58);
-
-      // Phase 2: pin + hold at the top.
-      // No exit phase since this is the last section.
-      const holdTl = gsap.timeline({
-        defaults: { ease: "none" },
-        scrollTrigger: {
-          trigger: sectionEl,
-          start: "top top",
-          end: () => "+=" + window.innerHeight * 0.8,
-          pin: true,
-          scrub: true,
-          anticipatePin: 1,
-          invalidateOnRefresh: true,
-        },
-      });
-
-      holdTl.to({}, { duration: 1 });
-
-      // Ensure measurements account for the pin-spacer insertion.
-      requestAnimationFrame(() => {
-        ScrollTrigger.refresh();
-      });
+        .to(body, { autoAlpha: 1, y: 0, duration: 0.18, ease: "power3.out" }, 0.34)
+        .to(ctas, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, 0.42);
 
       return () => {
         split.revert();
-
-        enterTl.scrollTrigger?.kill();
-        enterTl.kill();
-
-        holdTl.scrollTrigger?.kill();
-        holdTl.kill();
       };
     },
     { scope: sectionRef },
