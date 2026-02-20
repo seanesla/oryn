@@ -304,8 +304,6 @@ function buildDeepField(count: number) {
 // ── Component ──────────────────────────────────────────────────────────────
 export function GalaxyLayer({ accent, accent2, variant = 1 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const propsRef     = useRef({ accent, accent2, variant });
-  propsRef.current   = { accent, accent2, variant };
 
   useEffect(() => {
     const ctn = containerRef.current;
@@ -334,8 +332,8 @@ export function GalaxyLayer({ accent, accent2, variant = 1 }: Props) {
     const starCount = variant === 2 ? 24000 : 18000;
     // Warm white for the core — bright but not full 1.0 so it stays golden, not white
     const warm: [number, number, number] = [0.98, 0.90, 0.76];
-    const acc  = parseHex(propsRef.current.accent);
-    const acc2 = parseHex(propsRef.current.accent2);
+    const acc  = parseHex(accent);
+    const acc2 = parseHex(accent2);
 
     const { pos, col, sizes, count } = buildGeometry(starCount, warm, acc, acc2);
 
@@ -495,8 +493,7 @@ export function GalaxyLayer({ accent, accent2, variant = 1 }: Props) {
       renderer.dispose();
       if (domEl.parentNode === ctn) ctn.removeChild(domEl);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [variant]);
+  }, [accent, accent2, variant]);
 
   return (
     <div

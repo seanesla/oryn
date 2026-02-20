@@ -19,13 +19,25 @@ const items = [
 export function LeftNav() {
   const pathname = usePathname();
 
-  const [cached, setCached] = useState(() => (typeof window !== "undefined" ? listSessions() : []));
+  const [cached, setCached] = useState<ReturnType<typeof listSessions>>([]);
   useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setCached(listSessions());
+    });
     refreshSessions(10)
-      .then((list) => setCached(list))
+      .then((list) => {
+        if (cancelled) return;
+        setCached(list);
+      })
       .catch(() => {
         // keep cached
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const last = cached[0];

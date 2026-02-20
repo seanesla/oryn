@@ -12,9 +12,8 @@ import {
   Waves,
 } from "lucide-react";
 
-import type { SessionArtifacts, TranscriptChunk } from "@/lib/contracts";
+import type { SessionArtifacts, TranscriptChunk, WsState } from "@/lib/contracts";
 import { apiBaseUrl } from "@/lib/api";
-import type { RuntimeActions } from "@/lib/runtimeTypes";
 import { cn } from "@/lib/cn";
 
 import { Card } from "@/components/ui/Card";
@@ -59,10 +58,8 @@ function groupTurns(chunks: Array<TranscriptChunk>) {
 
 export function LiveAudioConsole({
   session,
-  actions,
 }: {
   session: SessionArtifacts;
-  actions: RuntimeActions;
 }) {
   const shouldReduceMotion = useReducedMotion();
   const [permission, setPermission] = useState<PermissionState>("unknown");
@@ -76,6 +73,7 @@ export function LiveAudioConsole({
 
   const [lastMessageType, setLastMessageType] = useState("-");
   const [lastError, setLastError] = useState<string | null>(null);
+  const [audioWsState, setAudioWsState] = useState<WsState>("offline");
 
   const streamRef = useRef<MediaStream | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -285,11 +283,12 @@ export function LiveAudioConsole({
 
     const ws = new WebSocket(wsUrlForSession(session.sessionId));
     wsRef.current = ws;
+    setAudioWsState("reconnecting");
 
     ws.onopen = () => {
       setLastMessageType("ws.open");
       setLastError(null);
-      actions.setWsState("connected");
+      setAudioWsState("connected");
       ws.send(JSON.stringify({ type: "control.start", mimeType: "audio/pcm;rate=16000" }));
     };
 
@@ -325,12 +324,12 @@ export function LiveAudioConsole({
     ws.onerror = () => {
       setLastMessageType("ws.error");
       setLastError("WebSocket error (check backend logs)");
-      actions.setWsState("reconnecting");
+      setAudioWsState("reconnecting");
     };
 
     ws.onclose = () => {
       setLastMessageType("ws.close");
-      actions.setWsState("offline");
+      setAudioWsState("offline");
       wsRef.current = null;
     };
 
@@ -427,7 +426,12 @@ export function LiveAudioConsole({
           <Badge tone={permission === "denied" ? "bad" : permission === "granted" ? "good" : "neutral"}>
             {permission === "granted" ? "Mic ready" : permission === "denied" ? "Mic blocked" : "Mic"}
           </Badge>
-          <Button variant="ghost" onClick={() => setDebugOpen((v) => !v)}>
+          <Button
+            variant="ghost"
+            aria-label={debugOpen ? "Hide debug" : "Show debug"}
+            title={debugOpen ? "Hide debug" : "Show debug"}
+            onClick={() => setDebugOpen((v) => !v)}
+          >
             <Bug className="h-4 w-4" />
           </Button>
         </div>
@@ -639,7 +643,7 @@ export function LiveAudioConsole({
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                    WebSocket state: <span className="text-[color:var(--fg)]">{session.wsState}</span>
+                    Audio WebSocket: <span className="text-[color:var(--fg)]">{audioWsState}</span>
                   </div>
                   <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
                     Last message: <span className="text-[color:var(--fg)]">{lastMessageType}</span>

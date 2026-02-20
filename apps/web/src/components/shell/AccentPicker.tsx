@@ -14,6 +14,8 @@ export function AccentPicker() {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button
+          type="button"
+          aria-label="Theme"
           className={cn(
             "inline-flex h-8.5 items-center gap-2 rounded-[0.58rem] border border-[color:var(--border-soft)]",
             "bg-[color:color-mix(in_oklab,var(--surface-3)_92%,transparent)] px-3 text-xs text-[color:var(--muted-fg)]",

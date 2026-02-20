@@ -1,6 +1,7 @@
 "use client";
 
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -11,8 +12,9 @@ import { ArrowDownToLine, FileText, Plus, Wifi, WifiOff } from "lucide-react";
 import { AccentPicker } from "@/components/shell/AccentPicker";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { cn } from "@/lib/cn";
 import type { SessionArtifacts, WsState } from "@/lib/contracts";
-import { fetchSession, getSession } from "@/lib/sessions";
+import { getSession } from "@/lib/sessions";
 
 function wsTone(ws: WsState) {
   if (ws === "connected") return "good";
@@ -40,18 +42,27 @@ export function TopBar() {
   }, [pathname]);
 
   const [, forceRerender] = useState(0);
+  const [isHydrated, setIsHydrated] = useState(false);
   const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
-    if (!sessionId) return;
-    fetchSession(sessionId).catch(() => {
-      // keep cached
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setIsHydrated(true);
     });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionId || !isHydrated) return;
     const interval = window.setInterval(() => forceRerender((x) => x + 1), 800);
     return () => window.clearInterval(interval);
-  }, [sessionId]);
+  }, [isHydrated, sessionId]);
 
-  const active: SessionArtifacts | null = sessionId ? getSession(sessionId) : null;
+  const active: SessionArtifacts | null = isHydrated && sessionId ? getSession(sessionId) : null;
 
   const ws = active?.wsState ?? "connected";
   const current = active?.latencyMs.current ?? 0;
@@ -61,7 +72,7 @@ export function TopBar() {
     <header className="fixed inset-x-0 top-0 z-50 border-b border-[color:color-mix(in_oklab,var(--border)_88%,transparent)] bg-[color:color-mix(in_oklab,var(--bg)_82%,transparent)] backdrop-blur-xl">
       <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-6">
         <Link href="/" className="group flex items-center gap-2">
-          <div className="h-2.5 w-2.5 rotate-45 rounded-[2px] bg-[color:var(--accent)]" />
+          <Image src="/orynlogo.svg" alt="Oryn logo" width={20} height={20} className="h-5 w-5" priority />
           <div className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--fg)]">oryn</div>
         </Link>
 
@@ -110,6 +121,8 @@ export function TopBar() {
 
           <Button
             variant="outline"
+            aria-label="New session"
+            title="New session"
             onClick={() => {
               router.push("/app");
             }}
@@ -121,7 +134,14 @@ export function TopBar() {
 
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild>
-              <Button variant="solid" size="sm" disabled={!active}>
+                <Button
+                  variant="solid"
+                  size="sm"
+                  aria-label="Export session"
+                  title="Export session"
+                  disabled={!active}
+                  className={cn(!active && "hidden sm:inline-flex")}
+                >
                 <ArrowDownToLine className="h-4 w-4" />
                 <span className="hidden sm:inline">Export</span>
               </Button>

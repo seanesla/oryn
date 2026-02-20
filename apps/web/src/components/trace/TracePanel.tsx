@@ -61,7 +61,7 @@ export function TracePanel({ session }: { session: SessionArtifacts }) {
             {toolCalls.map((t, index) => (
               <motion.div
                 layout
-                key={t.id}
+                key={`${t.id}-${index}`}
                 initial={shouldReduceMotion ? false : { opacity: 0, y: 8, filter: "blur(8px)" }}
                 animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
                 exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, filter: "blur(5px)" }}
@@ -99,8 +99,8 @@ export function TracePanel({ session }: { session: SessionArtifacts }) {
               </div>
               <Divider className="my-3" />
               <div className="space-y-2">
-                {toolCalls.map((t) => (
-                  <div key={t.id} className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_90%,transparent)] p-3">
+                {toolCalls.map((t, index) => (
+                  <div key={`${t.id}-${index}`} className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_90%,transparent)] p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="text-sm font-semibold text-[color:var(--fg)]">{t.queryText}</div>
                       <div className="text-[11px] text-[color:var(--muted-fg)]">{fmt(t.timestampMs)}</div>

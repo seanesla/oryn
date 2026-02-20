@@ -17,14 +17,26 @@ function fmt(ms: number) {
 }
 
 export function HistoryClient() {
-  const [sessions, setSessions] = useState(() => listSessions());
+  const [sessions, setSessions] = useState<ReturnType<typeof listSessions>>([]);
 
   useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setSessions(listSessions());
+    });
     refreshSessions(10)
-      .then((list) => setSessions(list))
+      .then((list) => {
+        if (cancelled) return;
+        setSessions(list);
+      })
       .catch(() => {
         // Keep cached list.
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (

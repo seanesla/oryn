@@ -97,6 +97,10 @@ body {
   height: 100%;
 }
 
+html {
+  position: relative;
+}
+
 body {
   background: var(--bg);
   color: var(--fg);
@@ -124,8 +128,8 @@ body {
   pointer-events: none;
 }
 
-/* Landing: keep the galaxy only in the first viewport (hero).
-   The rest of the landing page scrolls over a solid background. */
+/* Legacy landing background slot (AnimatedBackground landingMode).
+   The current / landing uses `LandingStickyBackgroundStage` instead. */
 .app-bg-layer-landing {
   position: absolute;
   top: 0;
@@ -140,103 +144,109 @@ html.landing-smooth {
   scroll-behavior: smooth;
 }
 
+/* Lenis smooth scroll (landing only). */
+html.lenis,
+html.lenis body {
+  height: auto;
+  scroll-behavior: auto;
+}
+
+.lenis:not(.lenis-autoToggle).lenis-stopped {
+  overflow: clip;
+}
+
+.lenis [data-lenis-prevent],
+.lenis [data-lenis-prevent-wheel],
+.lenis [data-lenis-prevent-touch] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+
+.lenis.lenis-autoToggle {
+  transition-property: overflow;
+  transition-duration: 1ms;
+  transition-behavior: allow-discrete;
+}
+
 .landing-scene {
   min-height: 100vh;
   position: relative;
-}
-
-/* Opaque scene background so the fixed galaxy does NOT show through. */
-.landing-scene-solid {
-  background:
-    radial-gradient(120% 120% at 10% 0%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 60%),
-    radial-gradient(120% 120% at 92% 12%, color-mix(in oklab, var(--accent-2) 7%, transparent), transparent 58%),
-    linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 70%, var(--bg)) 100%);
-}
-
-/* Landing: section-to-section variety (keeps the page from feeling templated). */
-.landing-scene-intro {
-  background:
-    radial-gradient(140% 120% at 16% 0%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 60%),
-    radial-gradient(120% 120% at 90% 22%, color-mix(in oklab, var(--accent-2) 10%, transparent), transparent 62%),
-    radial-gradient(90% 70% at 50% 110%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 72%),
-    linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 72%, var(--bg)) 100%);
-}
-
-.landing-scene-feature-live {
-  background:
-    radial-gradient(130% 120% at 10% 10%, color-mix(in oklab, var(--accent) 10%, transparent), transparent 62%),
-    radial-gradient(120% 120% at 92% 16%, color-mix(in oklab, var(--accent-2) 8%, transparent), transparent 64%),
-    linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 68%, var(--bg)) 100%);
-}
-
-.landing-scene-feature-trace {
-  background:
-    radial-gradient(120% 120% at 88% 8%, color-mix(in oklab, var(--accent-2) 10%, transparent), transparent 62%),
-    radial-gradient(120% 120% at 16% 22%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 64%),
-    radial-gradient(120% 90% at 50% 110%, color-mix(in oklab, var(--bg) 55%, transparent), transparent 70%),
-    linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 70%, var(--bg)) 100%);
-}
-
-.landing-scene-feature-contract {
-  background:
-    radial-gradient(120% 120% at 14% 14%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 62%),
-    radial-gradient(120% 120% at 90% 12%, color-mix(in oklab, var(--accent-2) 8%, transparent), transparent 66%),
-    linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 72%, var(--bg)) 100%);
-}
-
-.landing-scene-how {
-  background:
-    radial-gradient(120% 120% at 10% 0%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 62%),
-    radial-gradient(120% 120% at 92% 18%, color-mix(in oklab, var(--accent-2) 7%, transparent), transparent 64%),
-    radial-gradient(140% 90% at 50% 112%, color-mix(in oklab, var(--bg) 60%, transparent) 0%, transparent 52%),
-    linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 72%, var(--bg)) 100%);
-}
-
-.landing-scene-use {
-  background:
-    radial-gradient(130% 120% at 22% 0%, color-mix(in oklab, var(--accent) 10%, transparent), transparent 62%),
-    radial-gradient(120% 120% at 84% 20%, color-mix(in oklab, var(--accent-2) 8%, transparent), transparent 64%),
-    radial-gradient(120% 90% at 50% 110%, color-mix(in oklab, var(--bg) 55%, transparent), transparent 70%),
-    linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 70%, var(--bg)) 100%);
-}
-
-.landing-scene-faq {
-  background:
-    radial-gradient(120% 120% at 12% 16%, color-mix(in oklab, var(--accent-2) 8%, transparent), transparent 66%),
-    radial-gradient(120% 120% at 92% 10%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 66%),
-    radial-gradient(140% 90% at 50% 110%, color-mix(in oklab, var(--bg) 60%, transparent), transparent 70%),
-    linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 74%, var(--bg)) 100%);
-}
-
-.landing-scene-close {
-  background:
-    radial-gradient(140% 120% at 20% 0%, color-mix(in oklab, var(--accent) 11%, transparent), transparent 60%),
-    radial-gradient(120% 120% at 86% 18%, color-mix(in oklab, var(--accent-2) 10%, transparent), transparent 64%),
-    radial-gradient(90% 70% at 50% 110%, color-mix(in oklab, var(--accent) 10%, transparent), transparent 72%),
-    linear-gradient(to bottom, var(--bg) 0%, color-mix(in oklab, var(--surface-3) 72%, var(--bg)) 100%);
-}
-
-/* Landing: editorial text block with a rail + aura (less "card/pill"). */
-.landing-text-rail {
   isolation: isolate;
-  padding-left: 0.9rem;
 }
 
-.landing-text-rail::after {
-  content: "";
-  position: absolute;
-  left: -3.5rem;
-  top: -4rem;
-  width: 34rem;
-  height: 34rem;
-  background:
-    radial-gradient(closest-side at 50% 40%, color-mix(in oklab, var(--accent) 18%, transparent) 0%, transparent 62%),
-    radial-gradient(closest-side at 35% 70%, color-mix(in oklab, var(--accent-2) 12%, transparent) 0%, transparent 64%);
-  opacity: 0.55;
-  filter: blur(10px);
-  z-index: -1;
-  pointer-events: none;
+/* Subtle readability veil over the sticky cosmic stage (neutral, no accent gradients). */
+.landing-scene-solid {
+  background: color-mix(in oklab, var(--bg) 18%, transparent);
 }
+
+.landing-bg-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.landing-bg-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+}
+
+.landing-bg-stage-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% -8%, transparent 28%, color-mix(in oklab, var(--bg) 38%, transparent) 88%),
+    radial-gradient(120% 120% at 50% 112%, color-mix(in oklab, var(--bg) 52%, transparent) 0%, transparent 54%);
+}
+
+.landing-bg-stage-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.14;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.025) 0 1px,
+      rgba(0, 0, 0, 0.025) 1px 2px,
+      transparent 2px 4px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.02) 0 1px,
+      transparent 1px 3px
+    );
+  mix-blend-mode: soft-light;
+  animation: landing-bg-grain-shift 8s steps(12) infinite;
+}
+
+
+
+@keyframes landing-bg-grain-shift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  25% {
+    transform: translate3d(-1.2%, 0.9%, 0);
+  }
+  50% {
+    transform: translate3d(0.8%, -1.1%, 0);
+  }
+  75% {
+    transform: translate3d(-0.6%, -0.8%, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+
 
 .app-bg-slot {
   position: absolute;
@@ -326,6 +336,11 @@ html.landing-smooth {
     linear-gradient(to bottom, color-mix(in oklab, var(--accent) 4%, transparent) 1px, transparent 1px);
   background-size: auto, 38px 38px, 38px 38px;
   opacity: 0.52;
+}
+
+.app-bg-landing-page::before,
+.app-bg-landing-page::after {
+  display: none;
 }
 
 .app-bg-dynamic::after {
@@ -567,42 +582,7 @@ html.landing-smooth {
   pointer-events: none;
 }
 
-/* ── Landing cutscene utilities ── */
 
-@keyframes landing-scanline {
-  0% {
-    background-position: 0 -60px, 0 0;
-  }
-  100% {
-    background-position: 0 60px, 0 0;
-  }
-}
-
-.landing-scanline {
-  border-radius: inherit;
-  background-image:
-    linear-gradient(to bottom, transparent 0%, rgba(255, 255, 255, 0.07) 46%, transparent 72%),
-    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 10px);
-  opacity: 0.22;
-  mix-blend-mode: screen;
-  animation: landing-scanline 1.05s linear infinite;
-}
-
-/* ── Landing section dividers ── */
-.landing-divider {
-  border-top: 1px solid color-mix(in oklab, var(--border) 36%, transparent);
-}
-
-/* ── Non-hero section readability scrim (frosted glass — keeps galaxy visible) ── */
-.landing-section-scrim {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background: color-mix(in oklab, var(--bg) 38%, transparent);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-}
 
 @media (prefers-reduced-motion: reduce) {
   .app-bg::before {
@@ -617,7 +597,7 @@ html.landing-smooth {
     animation: none;
   }
 
-  .landing-scanline {
+  .landing-bg-stage-grain {
     animation: none;
   }
 }

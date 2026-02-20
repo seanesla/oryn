@@ -26,6 +26,13 @@ function domainFromUrl(url: string) {
   }
 }
 
+function toAnalyzeErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  return "Could not start the session. Please try again.";
+}
+
 function Segmented({
   value,
   onChange,
@@ -80,35 +87,40 @@ export function SessionSetupPanel() {
   async function handleAnalyze() {
     setError(null);
 
-    if (mode === "co-reading") {
-      const d = domainFromUrl(url);
-      if (!d) {
-        setError("That URL doesn’t look valid. Paste a full link starting with http(s).");
+    try {
+      if (mode === "co-reading") {
+        const d = domainFromUrl(url);
+        if (!d) {
+          setError("That URL doesn’t look valid. Paste a full link starting with http(s).");
+          return;
+        }
+        setFetchingMeta(true);
+        setDomain(null);
+        setTitle(null);
+        // Lightweight UX delay so the UI doesn't feel like a hard jump.
+        await new Promise((r) => setTimeout(r, 250));
+
+        const guessedTitle = "Co-reading session";
+        setDomain(d);
+        setTitle(guessedTitle);
+        setFetchingMeta(false);
+
+        const session = await createSession({ mode, url, title: guessedTitle, constraints });
+        router.push(`/session/${session.sessionId}`);
         return;
       }
-      setFetchingMeta(true);
-      setDomain(null);
-      setTitle(null);
-      // Lightweight UX delay so the UI doesn't feel like a hard jump.
-      await new Promise((r) => setTimeout(r, 250));
 
-      const guessedTitle = "Co-reading session";
-      setDomain(d);
-      setTitle(guessedTitle);
-      setFetchingMeta(false);
+      if (!claimText.trim()) {
+        setError("Type the claim you want checked.");
+        return;
+      }
 
-      const session = await createSession({ mode, url, title: guessedTitle, constraints });
+      const session = await createSession({ mode, title: claimText.trim(), constraints });
       router.push(`/session/${session.sessionId}`);
-      return;
+    } catch (err) {
+      setFetchingMeta(false);
+      setError(toAnalyzeErrorMessage(err));
     }
-
-    if (!claimText.trim()) {
-      setError("Type the claim you want checked.");
-      return;
-    }
-
-    const session = await createSession({ mode, title: claimText.trim(), constraints });
-    router.push(`/session/${session.sessionId}`);
   }
 
   return (
@@ -129,7 +141,10 @@ export function SessionSetupPanel() {
           <div className="text-xs font-medium text-[color:var(--muted-fg)]">Mode</div>
           <Segmented
             value={mode}
-            onChange={(v) => setMode(v as SessionMode)}
+            onChange={(v) => {
+              setMode(v as SessionMode);
+              setError(null);
+            }}
             options={[
               { value: "co-reading", label: "Co-Reading (URL)" },
               { value: "claim-check", label: "Claim Check (no URL)" },
@@ -143,7 +158,12 @@ export function SessionSetupPanel() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <Input
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  setError(null);
+                }}
+                aria-label="Session URL"
+                name="session-url"
                 placeholder="Paste a link…"
                 inputMode="url"
               />
@@ -181,7 +201,12 @@ export function SessionSetupPanel() {
             <div className="text-xs font-medium text-[color:var(--muted-fg)]">Claim</div>
             <textarea
               value={claimText}
-              onChange={(e) => setClaimText(e.target.value)}
+              onChange={(e) => {
+                setClaimText(e.target.value);
+                setError(null);
+              }}
+              aria-label="Claim to analyze"
+              name="claim-text"
               placeholder="Type the claim you heard…"
               className={cn(
                 "min-h-[110px] w-full resize-none rounded-[var(--radius-sm)] border border-[color:var(--border)]",

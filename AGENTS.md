@@ -190,12 +190,6 @@ Split groups with one blank line.
 - Do not remove or weaken auth, CORS, or streaming header behavior without updating tests.
 - Avoid changing `package-lock.json` without first checking whether all package manifests are updated.
 
-## Cursor / Copilot instructions
-
-- Checked for `.cursor/rules` or `.cursorrules`: none found.
-- Checked for `.github/copilot-instructions.md`: none found.
-- If these are added later, follow them and treat them as higher priority than this file.
-
 ## Commit hygiene notes
 
 - Keep changes scoped.

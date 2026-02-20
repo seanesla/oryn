@@ -96,7 +96,7 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
             <TabsTrigger value="next" className="flex-1">Next</TabsTrigger>
           </TabsList>
           <TabsContent value="talk" className="mt-4">
-            <LiveAudioConsole session={s} actions={actions} />
+            <LiveAudioConsole session={s} />
           </TabsContent>
           <TabsContent value="evidence" className="mt-4">
             <EvidenceCardsPanel session={s} actions={actions} />
@@ -135,7 +135,7 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
           transition={enterTransition(Boolean(shouldReduceMotion), 0)}
         >
           <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--muted-fg)]">Conversation</div>
-          <LiveAudioConsole session={s} actions={actions} />
+          <LiveAudioConsole session={s} />
         </motion.div>
 
         <motion.div

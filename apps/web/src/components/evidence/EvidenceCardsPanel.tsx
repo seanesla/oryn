@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
@@ -20,7 +20,7 @@ import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/Dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/Dialog";
 import { Divider } from "@/components/ui/Divider";
 import { Input } from "@/components/ui/Input";
 
@@ -68,6 +68,9 @@ export function EvidenceCardsPanel({
   const [query, setQuery] = useState("");
   const [confFilter, setConfFilter] = useState<Array<EvidenceCard["confidence"]>>([]);
   const [typeFilter, setTypeFilter] = useState<Array<DisagreementType>>([]);
+
+  const hasActiveFilters = Boolean(query.trim()) || confFilter.length > 0 || typeFilter.length > 0;
+  const hasAnyEvidenceCards = session.evidenceCards.length > 0;
 
   const cards = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -125,6 +128,8 @@ export function EvidenceCardsPanel({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search within claims"
+              name="claims-search"
               placeholder="Search within claims…"
               className="pl-9"
             />
@@ -137,8 +142,10 @@ export function EvidenceCardsPanel({
               </Button>
             </DialogTrigger>
             <DialogContent>
-              <div className="text-sm font-semibold tracking-[-0.02em]">Filters</div>
-              <div className="mt-1 text-xs text-[color:var(--muted-fg)]">Narrow what you see without changing the underlying session.</div>
+              <DialogTitle className="text-sm font-semibold tracking-[-0.02em]">Filters</DialogTitle>
+              <DialogDescription className="mt-1 text-xs text-[color:var(--muted-fg)]">
+                Narrow what you see without changing the underlying session.
+              </DialogDescription>
               <Divider className="my-3" />
               <div className="grid gap-4">
                 <div>
@@ -310,7 +317,12 @@ export function EvidenceCardsPanel({
                     {c.pinned ? <Badge tone="warn">Pinned</Badge> : null}
                   </div>
                 </div>
-                <Button variant="ghost" onClick={() => actions.togglePin(c.id)}>
+                <Button
+                  variant="ghost"
+                  aria-label={c.pinned ? "Unpin card" : "Pin card"}
+                  title={c.pinned ? "Unpin card" : "Pin card"}
+                  onClick={() => actions.togglePin(c.id)}
+                >
                   <Bookmark className={cn("h-4 w-4", c.pinned ? "text-[color:var(--accent)]" : "text-[color:var(--muted-fg)]")} />
                 </Button>
               </div>
@@ -367,8 +379,10 @@ export function EvidenceCardsPanel({
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <div className="text-sm font-semibold tracking-[-0.02em]">{c.disagreementType} dispute</div>
-                    <div className="mt-2 text-sm text-[color:var(--muted-fg)]">{explainDisputeType(c.disagreementType)}</div>
+                    <DialogTitle className="text-sm font-semibold tracking-[-0.02em]">{c.disagreementType} dispute</DialogTitle>
+                    <DialogDescription className="mt-2 text-sm text-[color:var(--muted-fg)]">
+                      {explainDisputeType(c.disagreementType)}
+                    </DialogDescription>
                     <Divider className="my-3" />
                     <div className="text-xs text-[color:var(--muted-fg)]">
                       This label is a UI guardrail: it forces the system to separate definitional arguments from factual checks.
@@ -389,15 +403,17 @@ export function EvidenceCardsPanel({
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
-                    <div className="text-sm font-semibold tracking-[-0.02em]">Retrieval trace for this card</div>
-                    <div className="mt-1 text-xs text-[color:var(--muted-fg)]">Which tool outputs fed it.</div>
+                    <DialogTitle className="text-sm font-semibold tracking-[-0.02em]">Retrieval trace for this card</DialogTitle>
+                    <DialogDescription className="mt-1 text-xs text-[color:var(--muted-fg)]">
+                      Which tool outputs fed it.
+                    </DialogDescription>
                     <Divider className="my-3" />
                     <div className="space-y-2">
-                      {(c.traceRef?.toolCallIds ?? []).map((id) => {
+                      {(c.traceRef?.toolCallIds ?? []).map((id, index) => {
                         const call = session.trace.toolCalls.find((t) => t.id === id);
                         if (!call) return null;
                         return (
-                          <div key={id} className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-3">
+                          <div key={`${id}-${index}`} className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-3">
                             <div className="text-xs font-medium text-[color:var(--fg)]">{call.queryText}</div>
                             <div className="mt-1 text-[11px] text-[color:var(--muted-fg)]">
                               results: {call.resultsCount} · selected: {call.selectedSourceDomains.join(", ")}
@@ -435,7 +451,28 @@ export function EvidenceCardsPanel({
 
         {cards.length === 0 ? (
           <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_84%,transparent)] p-4 text-sm text-[color:var(--muted-fg)]">
-            Waiting on evidence cards…
+            {!hasAnyEvidenceCards
+              ? session.pipeline.evidenceBuilding
+                ? "Building evidence cards…"
+                : "Waiting on evidence cards…"
+              : hasActiveFilters
+                ? "No cards match your current search/filters."
+                : "No cards are visible with the current session constraints."}
+            {hasAnyEvidenceCards && hasActiveFilters ? (
+              <div className="mt-3 flex justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setConfFilter([]);
+                    setTypeFilter([]);
+                    setQuery("");
+                  }}
+                >
+                  Clear filters
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -452,16 +489,21 @@ function FollowUpDialog({
 }) {
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <DialogContent>
-      <div className="text-sm font-semibold tracking-[-0.02em]">Ask a follow-up question</div>
-      <div className="mt-1 text-xs text-[color:var(--muted-fg)]">
+      <DialogTitle className="text-sm font-semibold tracking-[-0.02em]">Ask a follow-up question</DialogTitle>
+      <DialogDescription className="mt-1 text-xs text-[color:var(--muted-fg)]">
         This gets appended as a user turn.
-      </div>
+      </DialogDescription>
       <Divider className="my-3" />
       <textarea
         value={text}
+        name="follow-up-question"
+        aria-label="Follow-up question"
         onChange={(e) => {
           setText(e.target.value);
           setErr(null);
@@ -479,6 +521,9 @@ function FollowUpDialog({
           {err}
         </div>
       ) : null}
+      <DialogClose asChild>
+        <button ref={closeButtonRef} type="button" className="hidden" tabIndex={-1} aria-hidden="true" />
+      </DialogClose>
       <div className="mt-4 flex items-center justify-between">
         <div className="text-[11px] text-[color:var(--muted-fg)]">
           Evidence required: {session.evidenceCards.length > 0 ? "yes" : "no (blocked)"}
@@ -488,7 +533,9 @@ function FollowUpDialog({
             <Button variant="outline">Cancel</Button>
           </DialogClose>
           <Button
-            onClick={() => {
+            disabled={isSubmitting}
+            onClick={async () => {
+              if (submitLockRef.current) return;
               if (!text.trim()) {
                 setErr("Type a question.");
                 return;
@@ -497,24 +544,37 @@ function FollowUpDialog({
                 setErr("Evidence required. Narrow the claim.");
                 return;
               }
-              actions.appendTranscript({
-                speaker: "user",
-                text: text.trim(),
-                timestampMs: Date.now(),
-                isPartial: false,
-                turnId: `user_followup_${Date.now()}`,
-              });
-              actions.appendTranscript({
-                speaker: "agent",
-                text: "Got it. I’ll treat that as a narrowing question and rebuild the choice set with the missing frame in mind. (mock)",
-                timestampMs: Date.now() + 220,
-                isPartial: false,
-                turnId: `agent_followup_${Date.now()}`,
-              });
-              actions.regenerateChoiceSet();
+              setErr(null);
+              submitLockRef.current = true;
+              setIsSubmitting(true);
+              const now = Date.now();
+              try {
+                await actions.appendTranscript({
+                  speaker: "user",
+                  text: text.trim(),
+                  timestampMs: now,
+                  isPartial: false,
+                  turnId: `user_followup_${now}`,
+                });
+                await actions.appendTranscript({
+                  speaker: "agent",
+                  text: "Got it. I’ll treat that as a narrowing question and rebuild the choice set with the missing frame in mind. (mock)",
+                  timestampMs: now + 220,
+                  isPartial: false,
+                  turnId: `agent_followup_${now}`,
+                });
+                await actions.regenerateChoiceSet();
+                setText("");
+                closeButtonRef.current?.click();
+              } catch {
+                setErr("Could not submit follow-up. Try again.");
+              } finally {
+                submitLockRef.current = false;
+                setIsSubmitting(false);
+              }
             }}
           >
-            Add
+            {isSubmitting ? "Adding…" : "Add"}
           </Button>
         </div>
       </div>

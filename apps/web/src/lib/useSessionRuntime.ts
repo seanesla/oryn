@@ -44,6 +44,10 @@ export function useSessionRuntime(sessionId: string) {
   const [runtime, setRuntime] = useState<Runtime>({ state: null, isBooting: true });
   const esRef = useRef<EventSource | null>(null);
 
+  const isLikelyUuid = useMemo(() => {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
+  }, [sessionId]);
+
   const persist = useCallback((next: SessionArtifacts) => {
     upsertSession(next);
     setRuntime({ state: next, isBooting: false });
@@ -60,29 +64,24 @@ export function useSessionRuntime(sessionId: string) {
 
   useEffect(() => {
     let cancelled = false;
+    let es: EventSource | null = null;
     // Avoid synchronous setState inside an effect body (eslint rule).
     Promise.resolve().then(() => {
       if (cancelled) return;
       setRuntime((prev) => ({ ...prev, isBooting: true, error: undefined }));
     });
 
-    apiFetch(`/v1/sessions/${sessionId}`)
-      .then((r) => r.json())
-      .then((s: SessionArtifacts) => {
+    if (!isLikelyUuid) {
+      Promise.resolve().then(() => {
         if (cancelled) return;
-        persist(s);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const msg = err instanceof Error ? err.message : "Failed to load session";
-        setRuntime({ state: null, isBooting: false, error: msg });
+        setRuntime({ state: null, isBooting: false, error: "Invalid session id" });
       });
-
-    // SSE stream for session.state updates.
-    const es = new EventSource(
-      `${(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8787").replace(/\/$/, "")}/v1/sessions/${sessionId}/events`
-    );
-    esRef.current = es;
+      return () => {
+        cancelled = true;
+        esRef.current?.close();
+        esRef.current = null;
+      };
+    }
 
     const onState: EventListener = (ev) => {
       try {
@@ -97,19 +96,47 @@ export function useSessionRuntime(sessionId: string) {
       }
     };
 
-    es.addEventListener("session.state", onState);
-    es.onerror = () => {
-      // Keep the last known state; show offline/reconnecting in UI.
-      mutate((prev) => ({ ...prev, wsState: "reconnecting" as WsState }));
-    };
+    apiFetch(`/v1/sessions/${sessionId}`)
+      .then((r) => r.json())
+      .then((s: SessionArtifacts) => {
+        if (cancelled) return;
+        // Treat wsState as the session transport state for SSE updates.
+        // (The live-audio WebSocket maintains its own local UI state.)
+        persist({ ...s, wsState: "reconnecting" });
+
+        // SSE stream for session.state updates.
+        const nextEs = new EventSource(
+          `${(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8787").replace(/\/$/, "")}/v1/sessions/${sessionId}/events`
+        );
+        es = nextEs;
+        esRef.current = nextEs;
+
+        nextEs.onopen = () => {
+          if (cancelled) return;
+          mutate((prev) => ({ ...prev, wsState: "connected" }));
+        };
+        nextEs.onerror = () => {
+          if (cancelled) return;
+          mutate((prev) => ({ ...prev, wsState: "reconnecting" }));
+        };
+
+        nextEs.addEventListener("session.state", onState);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Failed to load session";
+        setRuntime({ state: null, isBooting: false, error: msg });
+      });
 
     return () => {
       cancelled = true;
-      es.removeEventListener("session.state", onState);
-      es.close();
+      if (es) {
+        es.removeEventListener("session.state", onState);
+        es.close();
+      }
       esRef.current = null;
     };
-  }, [mutate, persist, sessionId]);
+  }, [isLikelyUuid, mutate, persist, sessionId]);
 
   const startAnalysis = useCallback(async () => {
     await apiFetch(`/v1/sessions/${sessionId}/analyze`, { method: "POST" });

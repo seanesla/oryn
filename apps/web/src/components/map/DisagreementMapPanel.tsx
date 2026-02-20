@@ -22,7 +22,7 @@ import { cn } from "@/lib/cn";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/Dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/Dialog";
 import { Divider } from "@/components/ui/Divider";
 
 type ClusterNodeData = {
@@ -240,8 +240,8 @@ export function DisagreementMapPanel({ session }: { session: SessionArtifacts })
           <DialogContent>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold tracking-[-0.02em]">{c.title}</div>
-                <div className="mt-1 text-xs text-[color:var(--muted-fg)]">Cluster detail</div>
+                <DialogTitle className="text-sm font-semibold tracking-[-0.02em]">{c.title}</DialogTitle>
+                <DialogDescription className="mt-1 text-xs text-[color:var(--muted-fg)]">Cluster detail</DialogDescription>
               </div>
               <Badge tone="accent">
                 <ListChecks className="h-3.5 w-3.5" />

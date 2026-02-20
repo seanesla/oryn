@@ -10,12 +10,17 @@ export function apiUrl(path: string) {
 }
 
 export async function apiFetch(path: string, init?: RequestInit) {
-  const res = await fetch(apiUrl(path), {
-    ...init,
-    headers: {
-      ...(init?.headers ?? {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(path), {
+      ...init,
+      headers: {
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch {
+    throw new Error(`Could not reach the API at ${apiBaseUrl()}. Start the backend and try again.`);
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`API ${res.status}: ${text || res.statusText}`);
