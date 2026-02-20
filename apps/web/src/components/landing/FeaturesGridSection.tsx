@@ -155,9 +155,6 @@ export function FeaturesGridSection() {
       className="landing-scene landing-scene-solid flex min-h-[100svh] items-center"
     >
       <div className="relative mx-auto w-full max-w-[1680px] px-4 py-20 sm:px-6 lg:px-10">
-        {/* Readability scrim — subtle dark gradient, not a visible box */}
-        <div aria-hidden className="landing-section-scrim" />
-
         <div className="relative z-10">
           <div data-feat-label className="section-label">
             Why teams use it

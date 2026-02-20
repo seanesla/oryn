@@ -16,12 +16,20 @@ import { GalaxyLayer } from "@/components/shell/LandingEffects/GalaxyLayer";
 
 const SCENE_ATTR = "data-landing-scene";
 
-const SCENE_IDS = ["hero", "features", "how", "use"] as const;
+const SCENE_IDS = ["hero", "features", "how", "use", "closing"] as const;
 
 type LandingSceneId = (typeof SCENE_IDS)[number];
 
 const SCENE_ID_SET = new Set<string>(SCENE_IDS);
 const DEFAULT_SCENE: LandingSceneId = "hero";
+
+const TINT_OPACITY: Record<LandingSceneId, number> = {
+  hero: 0.12,
+  features: 0.3,
+  how: 0.3,
+  use: 0.3,
+  closing: 0.3,
+};
 
 /** Fraction of each section's trigger range used for the crossfade overlap. */
 const CROSSFADE = 0.15;
@@ -43,7 +51,10 @@ export function LandingStickyBackgroundStage() {
     features: null,
     how: null,
     use: null,
+    closing: null,
   });
+
+  const tintRef = useRef<HTMLDivElement | null>(null);
 
   // ── Lazy mount: only render WebGL children for active + adjacent scenes ──
   // In reduced-motion mode only the hero scene is mounted (static background).
@@ -64,6 +75,7 @@ export function LandingStickyBackgroundStage() {
         const el = sceneRefs.current[id];
         if (el) el.style.opacity = id === DEFAULT_SCENE ? "1" : "0";
       }
+      if (tintRef.current) tintRef.current.style.opacity = String(TINT_OPACITY[DEFAULT_SCENE]);
       return;
     }
 
@@ -82,6 +94,8 @@ export function LandingStickyBackgroundStage() {
       const el = sceneRefs.current[id];
       if (el) el.style.opacity = id === DEFAULT_SCENE ? "1" : "0";
     }
+
+    if (tintRef.current) tintRef.current.style.opacity = String(TINT_OPACITY[DEFAULT_SCENE]);
 
     const activate = (id: LandingSceneId) => {
       if (activeRef.current === id) return;
@@ -103,11 +117,13 @@ export function LandingStickyBackgroundStage() {
           activate(sceneId);
           const el = sceneRefs.current[sceneId];
           if (el) el.style.opacity = "1";
+          if (tintRef.current) tintRef.current.style.opacity = String(TINT_OPACITY[sceneId]);
         },
         onEnterBack: () => {
           activate(sceneId);
           const el = sceneRefs.current[sceneId];
           if (el) el.style.opacity = "1";
+          if (tintRef.current) tintRef.current.style.opacity = String(TINT_OPACITY[sceneId]);
           // Reset next scene that was being crossfaded in
           if (nextId) {
             const nEl = sceneRefs.current[nextId];
@@ -125,10 +141,21 @@ export function LandingStickyBackgroundStage() {
             const t = (p - (1 - CROSSFADE)) / CROSSFADE;
             if (outEl) outEl.style.opacity = String(1 - t);
             if (inEl) inEl.style.opacity = String(t);
+
+            if (tintRef.current) {
+              const a = TINT_OPACITY[sceneId];
+              const b = TINT_OPACITY[nextId];
+              tintRef.current.style.opacity = String(a + (b - a) * t);
+            }
           } else {
             // Outside crossfade — ensure clean state without thrashing
             if (outEl && outEl.style.opacity !== "1") outEl.style.opacity = "1";
             if (inEl && inEl.style.opacity !== "0") inEl.style.opacity = "0";
+
+            if (tintRef.current) {
+              const v = String(TINT_OPACITY[sceneId]);
+              if (tintRef.current.style.opacity !== v) tintRef.current.style.opacity = v;
+            }
           }
         },
         onLeave: () => {
@@ -138,6 +165,8 @@ export function LandingStickyBackgroundStage() {
             const inEl = sceneRefs.current[nextId];
             if (outEl) outEl.style.opacity = "0";
             if (inEl) inEl.style.opacity = "1";
+
+            if (tintRef.current) tintRef.current.style.opacity = String(TINT_OPACITY[nextId]);
           }
         },
       });
@@ -176,6 +205,12 @@ export function LandingStickyBackgroundStage() {
         </div>
       ))}
 
+      <div
+        ref={tintRef}
+        className="absolute inset-0 bg-[color:var(--bg)]"
+        style={{ opacity: TINT_OPACITY[DEFAULT_SCENE], willChange: "opacity" }}
+      />
+
       <div className="landing-bg-stage-vignette" />
       <div className="landing-bg-stage-grain" />
     </div>
@@ -204,6 +239,8 @@ function SceneBackground({
       return <HowParticles reducedMotion={reducedMotion} accent={accent} accent2={accent2} />;
     case "use":
       return <UseGalaxy reducedMotion={reducedMotion} accent={accent} />;
+    case "closing":
+      return <ClosingGalaxy reducedMotion={reducedMotion} accent={accent} accent2={accent2} />;
   }
 }
 
@@ -325,6 +362,29 @@ function UseGalaxy({
         noiseAmount={0.01}
         distortion={0.12}
         saturation={0.8}
+      />
+    </div>
+  );
+}
+
+function ClosingGalaxy({
+  reducedMotion,
+  accent,
+  accent2,
+}: {
+  reducedMotion: boolean;
+  accent: string;
+  accent2: string;
+}) {
+  return (
+    <div className="absolute inset-0 bg-black">
+      <GalaxyLayer accent={accent} accent2={accent2} variant={1} reducedMotion={reducedMotion} />
+      <ReactBitsAurora
+        className="absolute inset-0 opacity-[0.3]"
+        speed={reducedMotion ? 0 : 0.6}
+        amplitude={0.65}
+        blend={0.5}
+        colorStops={["#0c1030", accent2, accent]}
       />
     </div>
   );

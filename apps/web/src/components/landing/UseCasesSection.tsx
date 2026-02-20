@@ -254,8 +254,6 @@ export function UseCasesSection() {
       className="landing-scene landing-scene-solid flex min-h-[100svh] items-center"
     >
       <div className="relative mx-auto w-full max-w-[1680px] px-4 py-20 sm:px-6 lg:px-10">
-        <div aria-hidden className="landing-section-scrim" />
-
         <div data-use-inner className="relative z-10">
           <div data-use-label className="section-label">
             Use cases

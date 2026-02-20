@@ -199,8 +199,6 @@ export function HowItWorksSection() {
       className="landing-scene landing-scene-solid flex min-h-[100svh] items-center"
     >
       <div className="relative mx-auto w-full max-w-[1680px] px-4 py-20 sm:px-6 lg:px-10">
-        <div aria-hidden className="landing-section-scrim" />
-
         <div className="relative z-10 grid gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
           {/* ── Left: headline + body ── */}
           <div data-how-left className="min-w-0">

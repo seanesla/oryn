@@ -188,7 +188,8 @@ html.lenis body {
 
 /* Subtle readability veil over the sticky cosmic stage (neutral, no accent gradients). */
 .landing-scene-solid {
-  background: color-mix(in oklab, var(--bg) 18%, transparent);
+  /* Intentionally blank: readability tint lives on the fixed background stage
+     so pin-spacer clipping can't create visible seam lines. */
 }
 
 .landing-bg-stage {
@@ -250,16 +251,7 @@ html.lenis body {
   animation: gradient-shimmer 5s ease-in-out infinite;
 }
 
-/* Subtle readability darkening behind open-canvas text (not a visible box) */
-.landing-section-scrim {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    radial-gradient(65% 55% at 32% 42%, color-mix(in oklab, var(--bg) 78%, transparent), transparent 72%),
-    radial-gradient(50% 40% at 70% 65%, color-mix(in oklab, var(--bg) 52%, transparent), transparent 64%);
-}
+
 
 /* Step number outline-only text */
 .step-num-outline {
@@ -312,8 +304,8 @@ html.lenis body {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(120% 90% at 50% -8%, transparent 28%, color-mix(in oklab, var(--bg) 38%, transparent) 88%),
-    radial-gradient(120% 120% at 50% 112%, color-mix(in oklab, var(--bg) 52%, transparent) 0%, transparent 54%);
+    radial-gradient(120% 90% at 50% -8%, transparent 20%, color-mix(in oklab, var(--bg) 38%, transparent) 92%),
+    radial-gradient(120% 120% at 50% 112%, color-mix(in oklab, var(--bg) 52%, transparent) 0%, transparent 60%);
 }
 
 .landing-bg-stage-grain {
