@@ -9,6 +9,12 @@ This repository is a workspace monorepo for `oryn`.
 
 Unless explicitly changed by newer higher-priority rules, all agents should follow this file.
 
+## Hackathon context (persistent)
+
+- Before planning or implementing work for this project, read `docs/gemini-live-agent-hackathon-context.md`.
+- Treat that document as the persistent contest brief across new agent sessions.
+- If hackathon requirements change, update `docs/gemini-live-agent-hackathon-context.md` so future sessions inherit the latest constraints.
+
 ## Quick command reference
 
 ### Setup

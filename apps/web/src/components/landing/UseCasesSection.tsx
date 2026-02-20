@@ -1,13 +1,13 @@
 "use client";
 
-import { useRef } from "react";
-import { motion, useScroll, useTransform, useMotionTemplate } from "motion/react";
+import { useCallback, useRef, useState } from "react";
+import { useReducedMotion } from "motion/react";
 
-import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
+import { SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
 
-// ── Use case data ─────────────────────────────────────────────────────────────
+registerGsapPlugins();
+
+/* ── Data ── */
 
 type UseCase = {
   id: string;
@@ -26,8 +26,9 @@ const USE_CASES: Array<UseCase> = [
     label: "Policy",
     title: "Stress-test policy claims",
     subtitle: "Separate measurement disputes from causal arguments and value tradeoffs.",
-    inputExample: "\"This program reduced costs for the average household.\"",
-    outputExample: "Evidence cards + counter-evidence, then 3 next reads: definition, distribution, replication.",
+    inputExample: "\u201CThis program reduced costs for the average household.\u201D",
+    outputExample:
+      "Evidence cards + counter-evidence, then 3 next reads: definition, distribution, replication.",
     guardrails: ["Evidence cards required", "Counter-frame included", "Trace is inspectable"],
     bestFor: ["briefs", "hearings", "reports", "think tank claims"],
   },
@@ -35,7 +36,7 @@ const USE_CASES: Array<UseCase> = [
     id: "research",
     label: "Research",
     title: "Compare papers without losing citations",
-    subtitle: "Keep a trail from claim -> quote -> source -> retrieval decision.",
+    subtitle: "Keep a trail from claim \u2192 quote \u2192 source \u2192 retrieval decision.",
     inputExample: "Paste a claim + the DOI/URL for two competing papers.",
     outputExample: "Side-by-side evidence cards, with missing frames called out explicitly.",
     guardrails: ["Prefer primary sources", "Definition drift flagged", "Series breaks highlighted"],
@@ -46,9 +47,14 @@ const USE_CASES: Array<UseCase> = [
     label: "Product",
     title: "Read technical docs like an auditor",
     subtitle: "Turn marketing assertions into traceable, testable claims.",
-    inputExample: "\"This model is privacy-preserving and compliant by design.\"",
-    outputExample: "Evidence cards scoped to definitions, threat model, and enforcement mechanisms.",
-    guardrails: ["Unsupported factual claims blocked", "Constraints shown", "Only 3 deliberate next reads"],
+    inputExample: "\u201CThis model is privacy-preserving and compliant by design.\u201D",
+    outputExample:
+      "Evidence cards scoped to definitions, threat model, and enforcement mechanisms.",
+    guardrails: [
+      "Unsupported factual claims blocked",
+      "Constraints shown",
+      "Only 3 deliberate next reads",
+    ],
     bestFor: ["AI vendor eval", "security claims", "platform comparisons"],
   },
   {
@@ -57,189 +63,312 @@ const USE_CASES: Array<UseCase> = [
     title: "Fact-check without becoming a feed",
     subtitle: "High-signal counter-frames, not endless scrolling.",
     inputExample: "Drop a link to a viral article and the specific sentence you doubt.",
-    outputExample: "A dispute map: what's factual vs causal vs values — and what's missing.",
+    outputExample:
+      "A dispute map: what\u2019s factual vs causal vs values \u2014 and what\u2019s missing.",
     guardrails: ["Quote required", "Counter-evidence required", "Selection why is visible"],
     bestFor: ["reporting review", "headline drift", "metric definitions"],
   },
 ];
 
-// ── Section component ─────────────────────────────────────────────────────────
+/* ── Component ── */
 
 export function UseCasesSection() {
   const sectionRef = useRef<HTMLElement>(null);
-
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end start"],
-  });
-
-  const exitOpacity = useTransform(scrollYProgress, [0, 0.78, 1], [1, 1, 0]);
-  const exitScale = useTransform(scrollYProgress, [0, 0.82, 1], [1, 1, 0.97]);
-  const exitY = useTransform(scrollYProgress, [0, 1], [0, -70]);
-  const exitBlur = useTransform(scrollYProgress, [0.76, 1], [0, 14]);
-  const exitFilter = useMotionTemplate`blur(${exitBlur}px)`;
+  const shouldReduceMotion = useReducedMotion();
+  const reducedMotion = Boolean(shouldReduceMotion);
 
   const defaultCase = USE_CASES[0]?.id ?? "policy";
+  const [activeCase, setActiveCase] = useState<string>(defaultCase);
+
+  /* Tab panels ref for GSAP-driven switching */
+  const tabPanelsRef = useRef<HTMLElement[]>([]);
+
+  const applyLineMasks = (lines: HTMLElement[]) => {
+    const masks: HTMLElement[] = [];
+    for (const line of lines) {
+      const parent = line.parentNode;
+      if (!parent) continue;
+      const mask = document.createElement("div");
+      mask.className = "split-line-mask";
+      parent.insertBefore(mask, line);
+      mask.appendChild(line);
+      masks.push(mask);
+    }
+    return () => {
+      for (const mask of masks) {
+        const child = mask.firstChild;
+        if (child) mask.parentNode?.insertBefore(child, mask);
+        mask.remove();
+      }
+    };
+  };
+
+  /* ── Click-driven tab switch ── */
+  const handleTabChange = useCallback((value: string) => {
+    setActiveCase(value);
+    const panels = tabPanelsRef.current;
+    if (!panels.length) return;
+    const idx = USE_CASES.findIndex((u) => u.id === value);
+    panels.forEach((p, i) => {
+      if (i === idx) {
+        gsap.to(p, { autoAlpha: 1, x: 0, duration: 0.25, ease: "power3.out" });
+      } else {
+        gsap.to(p, { autoAlpha: 0, x: 0, duration: 0.15, ease: "power2.in" });
+      }
+    });
+    panels.forEach((p, i) => {
+      if (i === idx) {
+        p.removeAttribute("aria-hidden");
+        p.removeAttribute("inert");
+      } else {
+        p.setAttribute("aria-hidden", "true");
+        p.setAttribute("inert", "");
+      }
+    });
+  }, []);
+
+  useGSAP(
+    () => {
+      if (reducedMotion) return;
+      if (!sectionRef.current) return;
+
+      const label = sectionRef.current.querySelector<HTMLElement>("[data-use-label]");
+      const headline = sectionRef.current.querySelector<HTMLElement>("[data-use-headline]");
+      const body = sectionRef.current.querySelector<HTMLElement>("[data-use-body]");
+      const nav = sectionRef.current.querySelector<HTMLElement>("[data-use-nav]");
+      const contentWrap = sectionRef.current.querySelector<HTMLElement>("[data-use-content]");
+      const tabPanels = Array.from(
+        sectionRef.current.querySelectorAll<HTMLElement>("[data-use-tab-panel]"),
+      );
+      tabPanelsRef.current = tabPanels;
+
+      if (!label || !headline || !body || !nav || !contentWrap || tabPanels.length === 0) return;
+
+      const split = new SplitText(headline, { type: "lines" });
+      const lines = (split.lines ?? []) as HTMLElement[];
+      const removeMasks = applyLineMasks(lines);
+
+      /* Initial states */
+      gsap.set(label, { autoAlpha: 0, y: 12 });
+      gsap.set(lines, { autoAlpha: 0, yPercent: 120 });
+      gsap.set(body, { autoAlpha: 0, y: 18 });
+      gsap.set(nav, { autoAlpha: 0, y: 20 });
+      gsap.set(contentWrap, { autoAlpha: 0, y: 30 });
+
+      /* Tab panels: first visible, rest hidden with horizontal offset */
+      tabPanels.forEach((p, i) => {
+        gsap.set(p, { autoAlpha: i === 0 ? 1 : 0, x: i === 0 ? 0 : 60 });
+      });
+
+      /* Scroll-driven tab switcher */
+      const switchToTab = (idx: number) => {
+        setActiveCase(USE_CASES[idx].id);
+        tabPanels.forEach((p, i) => {
+          if (i === idx) {
+            gsap.to(p, { autoAlpha: 1, x: 0, duration: 0.2, ease: "power3.out" });
+            p.removeAttribute("aria-hidden");
+            p.removeAttribute("inert");
+          } else {
+            gsap.to(p, {
+              autoAlpha: 0,
+              x: i < idx ? -50 : 50,
+              duration: 0.15,
+              ease: "power2.in",
+            });
+            p.setAttribute("aria-hidden", "true");
+            p.setAttribute("inert", "");
+          }
+        });
+      };
+
+      const tl = gsap.timeline({
+        defaults: { ease: "none" },
+        scrollTrigger: {
+          trigger: sectionRef.current,
+          start: "top top",
+          end: () => "+=" + window.innerHeight * 2.6,
+          pin: true,
+          scrub: true,
+          invalidateOnRefresh: true,
+        },
+      });
+
+      /* ── Entrance: staggered line reveal + content fade ── */
+      tl.to(label, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power3.out" }, 0)
+        .to(
+          lines,
+          {
+            autoAlpha: 1,
+            yPercent: 0,
+            stagger: 0.12,
+            duration: 0.4,
+            ease: "back.out(1.5)",
+          },
+          0.04,
+        )
+        .to(body, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, 0.14)
+        .to(nav, { autoAlpha: 1, y: 0, duration: 0.18, ease: "power3.out" }, 0.2)
+        .to(contentWrap, { autoAlpha: 1, y: 0, duration: 0.2, ease: "power3.out" }, 0.26)
+
+        /* ── Tab cycling: scroll-driven ── */
+        .addLabel("policy", 0.36)
+        .call(() => switchToTab(0), [], "policy")
+
+        .to({}, { duration: 0.08 })
+
+        .addLabel("research", ">")
+        .call(() => switchToTab(1), [], "research")
+
+        .to({}, { duration: 0.08 })
+
+        .addLabel("product", ">")
+        .call(() => switchToTab(2), [], "product")
+
+        .to({}, { duration: 0.08 })
+
+        .addLabel("media", ">")
+        .call(() => switchToTab(3), [], "media")
+
+        .to({}, { duration: 0.08 })
+
+        /* ── Exit: scale + fade ── */
+        .addLabel("exit", ">")
+        .to(
+          sectionRef.current.querySelector("[data-use-inner]")!,
+          { scale: 0.92, autoAlpha: 0, duration: 0.24, ease: "power3.in" },
+          "exit",
+        );
+
+      return () => {
+        removeMasks();
+        split.revert();
+      };
+    },
+    { scope: sectionRef },
+  );
 
   return (
     <section
       ref={sectionRef}
       data-landing-scene="use"
-      className="landing-scene landing-scene-solid min-h-[110vh] py-20 sm:min-h-[120vh] sm:py-24 lg:min-h-[140vh] lg:py-0"
+      className="landing-scene landing-scene-solid flex min-h-[100svh] items-center"
     >
-      <motion.div
-        style={{ opacity: exitOpacity, y: exitY, scale: exitScale, filter: exitFilter }}
-        className="relative mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-10 lg:sticky lg:top-0 lg:flex lg:h-screen lg:items-center"
-      >
-        <div className="relative z-10 w-full">
-          <motion.div
-            initial={{ opacity: 0, x: -24 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="section-label"
-          >
+      <div className="relative mx-auto w-full max-w-[1680px] px-4 py-20 sm:px-6 lg:px-10">
+        <div aria-hidden className="landing-section-scrim" />
+
+        <div data-use-inner className="relative z-10">
+          <div data-use-label className="section-label">
             Use cases
-          </motion.div>
+          </div>
 
-          <div className="mt-7 grid gap-12 lg:grid-cols-[0.72fr_1.28fr] lg:items-start">
-            {/* Left: headline */}
-            <div className="min-w-0">
-              <motion.h2
-                initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
-                whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                viewport={{ once: true, margin: "-80px" }}
-                transition={{ duration: 0.8, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-                className="max-w-[20ch] font-serif text-[clamp(2.25rem,5.6vw,4.2rem)] leading-[1.02] tracking-[-0.04em]"
+          <h2
+            data-use-headline
+            className="mt-7 max-w-[20ch] font-serif text-[clamp(2.25rem,5.6vw,4.2rem)] leading-[1.02] tracking-[-0.04em]"
+            style={{ textShadow: "0 4px 32px rgba(0,0,0,0.5)" }}
+          >
+            Built for reading that matters.
+          </h2>
+
+          <p
+            data-use-body
+            className="mt-7 max-w-[58ch] text-[15px] leading-relaxed text-[color:var(--muted-fg)]"
+          >
+            Pick a workflow. The UI stays the same: claims become evidence cards, traces stay
+            inspectable, and you get a deliberate choice set instead of a feed.
+          </p>
+
+          {/* ── Custom nav: text labels with sliding accent underline ── */}
+          <nav
+            data-use-nav
+            className="mt-10 flex items-center gap-6 border-b border-[color:color-mix(in_oklab,var(--border)_50%,transparent)] text-sm font-medium"
+          >
+            {USE_CASES.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                data-active={activeCase === u.id ? "true" : "false"}
+                onClick={() => handleTabChange(u.id)}
+                className="use-nav-item text-[color:var(--muted-fg)] transition-colors data-[active=true]:text-[color:var(--fg)]"
               >
-                Built for reading that matters.
-              </motion.h2>
+                {u.label}
+              </button>
+            ))}
+          </nav>
 
-              <motion.p
-                initial={{ opacity: 0, y: 14 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.7, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
-                className="mt-7 max-w-[58ch] text-[15px] leading-relaxed text-[color:var(--muted-fg)]"
+          {/* ── Tab content: stacked panels, GSAP controls visibility ── */}
+          <div data-use-content className="mt-8 grid [&>*]:col-start-1 [&>*]:row-start-1">
+            {USE_CASES.map((u) => (
+              <div
+                key={u.id}
+                data-use-tab-panel={u.id}
+                aria-hidden={activeCase !== u.id || undefined}
+                {...(activeCase !== u.id ? { inert: true as unknown as boolean } : {})}
               >
-                Pick a workflow. The UI stays the same: claims become evidence cards, traces stay
-                inspectable, and you get a deliberate choice set instead of a feed.
-              </motion.p>
-
-              <div className="mt-10 grid gap-3">
-                {[
-                  { t: "Inputs", d: "URL, claim, or position you're evaluating." },
-                  { t: "Outputs", d: "Evidence cards + counter-frames + trace." },
-                  { t: "Decision", d: "Three next reads, selected for coverage." },
-                ].map((x) => (
-                  <div
-                    key={x.t}
-                    className="rounded-[0.9rem] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-3)_90%,transparent)] px-4 py-3"
-                  >
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--muted-fg)]">
-                      {x.t}
-                    </div>
-                    <div className="mt-1 text-sm text-[color:var(--fg)]">{x.d}</div>
-                  </div>
-                ))}
+                <UseCasePanel useCase={u} />
               </div>
-            </div>
-
-            {/* Right: tabbed use cases */}
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.8, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
-              className="min-w-0"
-            >
-              <Tabs defaultValue={defaultCase}>
-                <TabsList className="w-full justify-between">
-                  {USE_CASES.map((u) => (
-                    <TabsTrigger key={u.id} value={u.id} className="flex-1">
-                      {u.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-
-                {USE_CASES.map((u) => (
-                  <TabsContent key={u.id} value={u.id} className="mt-5">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <Card className="p-4">
-                        <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-[color:var(--muted-fg)]">
-                          {u.title}
-                        </div>
-                        <div className="mt-2 text-sm font-semibold tracking-[-0.01em]">
-                          {u.subtitle}
-                        </div>
-                        <div
-                          aria-hidden
-                          className="mt-6 h-px w-12 bg-[color:color-mix(in_oklab,var(--accent)_55%,transparent)] opacity-60"
-                        />
-                        <div className="mt-4 text-[11px] font-medium uppercase tracking-[0.14em] text-[color:var(--muted-fg)]">
-                          Example input
-                        </div>
-                        <div className="mt-2 rounded-[0.8rem] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-3)_92%,transparent)] p-3 font-mono text-[12px] leading-relaxed text-[color:var(--fg)]">
-                          {u.inputExample}
-                        </div>
-                      </Card>
-
-                      <Card className="p-4">
-                        <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-[color:var(--muted-fg)]">
-                          What you get
-                        </div>
-                        <div className="mt-2 text-sm font-semibold tracking-[-0.01em]">
-                          A decision surface, not a summary
-                        </div>
-                        <div
-                          aria-hidden
-                          className="mt-6 h-px w-12 bg-[color:color-mix(in_oklab,var(--accent-2)_52%,transparent)] opacity-60"
-                        />
-                        <div className="mt-4 text-[11px] font-medium uppercase tracking-[0.14em] text-[color:var(--muted-fg)]">
-                          Example output
-                        </div>
-                        <div className="mt-2 rounded-[0.8rem] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-3)_92%,transparent)] p-3 text-[13px] leading-relaxed text-[color:var(--muted-fg)]">
-                          {u.outputExample}
-                        </div>
-                      </Card>
-
-                      <Card className="p-4">
-                        <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-[color:var(--muted-fg)]">
-                          Guardrails
-                        </div>
-                        <div className="mt-3 grid gap-2">
-                          {u.guardrails.map((g) => (
-                            <div
-                              key={g}
-                              className="flex items-center gap-2 text-sm text-[color:var(--fg)]"
-                            >
-                              <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--accent)] opacity-75" />
-                              <span className="text-[13px] text-[color:var(--muted-fg)]">{g}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </Card>
-
-                      <Card className="p-4">
-                        <div className="text-[10px] font-medium uppercase tracking-[0.16em] text-[color:var(--muted-fg)]">
-                          Best for
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {u.bestFor.map((t) => (
-                            <Badge key={t} tone="neutral">
-                              {t}
-                            </Badge>
-                          ))}
-                        </div>
-                      </Card>
-                    </div>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </motion.div>
+            ))}
           </div>
         </div>
-      </motion.div>
+      </div>
     </section>
+  );
+}
+
+/* ── Use-case panel: clean typography, no cards ── */
+
+function UseCasePanel({ useCase: u }: { useCase: UseCase }) {
+  return (
+    <div className="grid gap-10 md:grid-cols-[1.1fr_0.9fr]">
+      {/* Left: title + examples */}
+      <div>
+        <div className="font-serif text-[clamp(1.35rem,3vw,2rem)] leading-[1.14] tracking-[-0.02em] text-gradient">
+          {u.title}
+        </div>
+        <div className="mt-2 text-sm text-[color:var(--muted-fg)]">{u.subtitle}</div>
+
+        <div className="mt-8">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-fg)]">
+            Example input
+          </div>
+          <div className="accent-border-block mt-2 font-mono text-[12px] leading-relaxed text-[color:var(--fg)]">
+            {u.inputExample}
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-fg)]">
+            What you get
+          </div>
+          <div className="accent-border-block-2 mt-2 text-[13px] leading-relaxed text-[color:var(--muted-fg)]">
+            {u.outputExample}
+          </div>
+        </div>
+      </div>
+
+      {/* Right: guardrails + best for */}
+      <div>
+        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-fg)]">
+          Guardrails
+        </div>
+        <div className="mt-3 grid gap-2.5">
+          {u.guardrails.map((g) => (
+            <div
+              key={g}
+              className="flex items-center gap-2.5 text-[13px] text-[color:var(--muted-fg)]"
+            >
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--accent)] opacity-70" />
+              {g}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-8 text-[10px] font-semibold uppercase tracking-[0.16em] text-[color:var(--muted-fg)]">
+          Best for
+        </div>
+        <div className="mt-3 text-[13px] leading-relaxed text-[color:var(--muted-fg)]">
+          {u.bestFor.join(" \u00B7 ")}
+        </div>
+      </div>
+    </div>
   );
 }

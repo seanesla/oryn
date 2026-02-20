@@ -94,7 +94,7 @@
 
 html,
 body {
-  height: 100%;
+  min-height: 100%;
 }
 
 html {
@@ -139,11 +139,6 @@ body {
   height: 100vh;
 }
 
-/* Landing: a slightly smoother feel for any programmatic scroll (anchors). */
-html.landing-smooth {
-  scroll-behavior: smooth;
-}
-
 /* Lenis smooth scroll (landing only). */
 html.lenis,
 html.lenis body {
@@ -151,8 +146,12 @@ html.lenis body {
   scroll-behavior: auto;
 }
 
+/* Lenis sets overflow:clip when stopped — we override to auto so native
+   scrolling takes over as a fallback if the GSAP↔Lenis bridge stalls.
+   Without this, any momentary Lenis "stop" (tab backgrounded, heavy
+   frame, initialisation race) completely locks scrolling. */
 .lenis:not(.lenis-autoToggle).lenis-stopped {
-  overflow: clip;
+  overflow: auto;
 }
 
 .lenis [data-lenis-prevent],
@@ -195,7 +194,86 @@ html.lenis body {
   inset: 0;
   width: 100%;
   height: 100%;
-  will-change: transform;
+  will-change: opacity, transform;
+}
+
+.split-line-mask {
+  display: block;
+  overflow: hidden;
+}
+
+/* ── Creative landing typography & layout ── */
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-reverse {
+  background: linear-gradient(135deg, var(--accent-2), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Subtle readability darkening behind open-canvas text (not a visible box) */
+.landing-section-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(65% 55% at 32% 42%, color-mix(in oklab, var(--bg) 78%, transparent), transparent 72%),
+    radial-gradient(50% 40% at 70% 65%, color-mix(in oklab, var(--bg) 52%, transparent), transparent 64%);
+}
+
+/* Step number outline-only text */
+.step-num-outline {
+  -webkit-text-stroke: 1.5px color-mix(in oklab, var(--accent) 48%, transparent);
+  -webkit-text-fill-color: transparent;
+  line-height: 0.85;
+}
+
+/* SVG timeline drawing line */
+.step-draw-line {
+  stroke: color-mix(in oklab, var(--accent) 35%, transparent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+/* Accent left-border block (replaces cards for quoted content) */
+.accent-border-block {
+  border-left: 2px solid color-mix(in oklab, var(--accent) 40%, transparent);
+  padding-left: 1rem;
+}
+
+.accent-border-block-2 {
+  border-left: 2px solid color-mix(in oklab, var(--accent-2) 40%, transparent);
+  padding-left: 1rem;
+}
+
+/* Use-case nav sliding indicator */
+.use-nav-item {
+  position: relative;
+  padding-bottom: 0.5rem;
+  cursor: pointer;
+}
+.use-nav-item::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.use-nav-item[data-active="true"]::after {
+  transform: scaleX(1);
 }
 
 .landing-bg-stage-vignette {
@@ -599,5 +677,11 @@ html.lenis body {
 
   .landing-bg-stage-grain {
     animation: none;
+  }
+
+  /* Disable tab content entrance animation (Radix TabsContent) */
+  [data-radix-collection-item][data-state="active"],
+  [role="tabpanel"][data-state="active"] {
+    animation: none !important;
   }
 }

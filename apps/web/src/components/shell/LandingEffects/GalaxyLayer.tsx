@@ -35,6 +35,7 @@ type Props = {
   accent: string;
   accent2: string;
   variant?: 1 | 2;
+  reducedMotion?: boolean;
 };
 
 // ── Vertex / fragment shaders for a soft-circle point ──────────────────────
@@ -302,7 +303,7 @@ function buildDeepField(count: number) {
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
-export function GalaxyLayer({ accent, accent2, variant = 1 }: Props) {
+export function GalaxyLayer({ accent, accent2, variant = 1, reducedMotion = false }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -467,16 +468,21 @@ export function GalaxyLayer({ accent, accent2, variant = 1 }: Props) {
     const rotSpeed = variant === 2 ? 0.022 : 0.015;
     let raf = 0;
 
-    const tick = () => {
-      raf = requestAnimationFrame(tick);
-      const t = performance.now() * 0.001;
-      group.rotation.y = t * rotSpeed;
-      // subtle opposite drift for depth/parallax feeling
-      midPoints.rotation.y = -t * (rotSpeed * 0.26);
-      midPoints.rotation.x = Math.sin(t * 0.11) * 0.03;
+    if (reducedMotion) {
+      // Render a single static frame — no continuous animation.
       composer.render();
-    };
-    raf = requestAnimationFrame(tick);
+    } else {
+      const tick = () => {
+        raf = requestAnimationFrame(tick);
+        const t = performance.now() * 0.001;
+        group.rotation.y = t * rotSpeed;
+        // subtle opposite drift for depth/parallax feeling
+        midPoints.rotation.y = -t * (rotSpeed * 0.26);
+        midPoints.rotation.x = Math.sin(t * 0.11) * 0.03;
+        composer.render();
+      };
+      raf = requestAnimationFrame(tick);
+    }
 
     // ── Cleanup ────────────────────────────────────────────────────────────
     return () => {
@@ -493,7 +499,7 @@ export function GalaxyLayer({ accent, accent2, variant = 1 }: Props) {
       renderer.dispose();
       if (domEl.parentNode === ctn) ctn.removeChild(domEl);
     };
-  }, [accent, accent2, variant]);
+  }, [accent, accent2, variant, reducedMotion]);
 
   return (
     <div

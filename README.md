@@ -19,6 +19,33 @@ Live co-reading agent for the Gemini Live Agent Challenge.
 - `packages/shared` shared types/protocol
 - `docs/architecture.md` architecture + diagrams
 
+## Architecture diagrams
+
+The diagrams below are generated from Structurizr DSL in `structurizr/workspace.dsl`.
+
+If this is your first time generating diagrams, download the Structurizr CLI:
+
+```bash
+mkdir -p structurizr/bin
+curl -L -o structurizr/bin/structurizr-cli.zip https://github.com/structurizr/cli/releases/latest/download/structurizr-cli.zip
+unzip -o structurizr/bin/structurizr-cli.zip -d structurizr/bin
+```
+
+You also need Graphviz installed so the `dot` command can render PNG images.
+The export script also uses Python 3 + Pillow to compose the branded 16:9 PNGs.
+
+```bash
+npm run diagrams:export
+```
+
+### 1) General architecture
+
+![oryn general architecture](structurizr/diagrams/general-architecture.png)
+
+### 2) Live co-reading flow
+
+![oryn live co-reading flow](structurizr/diagrams/live-co-reading-flow.png)
+
 ## Local dev
 
 ### Prereqs
