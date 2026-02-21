@@ -153,24 +153,29 @@ This project helps you separate disagreement types and optimize what you read ne
   - optional low-rate screenshots (only if needed)
   - renders evidence cards, map, trace, and choice set
 
-- **Backend Orchestrator** (Cloud Run)
+- **Backend Orchestrator / Live Proxy** (Cloud Run)
   - session manager
-  - ephemeral token minting for Live API
-  - ADK agent runtime
+  - Gemini Live proxy: the API opens a server-side WebSocket to Gemini Live and relays audio/tool-calls on behalf of the browser (the browser never connects to Gemini directly)
   - tool routing with JSON schemas
   - caching and rate limiting
 
-- **Gemini Live API**
-  - streaming audio in and audio out
-  - function calling for tools
+- **Gemini Live API** (server-side only)
+  - streaming audio in and audio out (proxied through the backend)
+  - function calling for tools (dispatched by the backend)
 
-- **Tool Services** (Cloud Run or internal modules)
-  - retrieval and grounding
-  - article fetch and extraction
-  - claim extraction and dispute classification
-  - clustering
-  - choice-set optimizer
-  - evidence pack assembly
+- **Tool Modules** (`packages/tools` — `@oryn/tools`)
+  - `grounded_search` — retrieval and grounding
+  - `fetch_and_extract` — article fetch and extraction
+  - `extract_claims` — claim extraction (Gemini structured JSON with heuristic fallback)
+  - `classify_disagreement` — dispute classification (Gemini structured JSON with heuristic fallback)
+  - `build_evidence_cards` — evidence card assembly
+  - `build_clusters` — groups evidence cards by disagreement type
+  - `optimize_choice_set` — choice-set optimizer
+  - `cache` — in-memory TTL cache (L1) used by the pipeline
+
+- **Agent** (`packages/agent` — `@oryn/agent`)
+  - `system-instruction` — builds the Gemini Live system instruction per session
+  - `epistemic-contract` — the hard trust contract (no claims without evidence card IDs)
 
 - **Data**
   - Firestore for session state and structured outputs
@@ -181,22 +186,22 @@ This project helps you separate disagreement types and optimize what you read ne
 ```mermaid
 flowchart LR
   U[User] --> W[Web Client]
-  W <-->|WS audio stream| LIVE[Gemini Live API]
-  W -->|URL / context| API[Cloud Run Orchestrator]
+  W <-->|WS audio + control| API[Cloud Run Orchestrator]
+  API <-->|WS audio + tool calls| LIVE[Gemini Live API]
+  W -->|REST / SSE| API
 
-  API -->|tool calls| TOOLS[Tool Router]
-  TOOLS --> GS[Grounded Search]
-  TOOLS --> EX[Extractor]
-  TOOLS --> CL[Claim + dispute classifier]
-  TOOLS --> GR[Graph + clusters]
-  TOOLS --> CS[Choice-set optimizer]
-  TOOLS --> EP[Evidence pack builder]
+  API -->|tool dispatch| TOOLS[Tool Router]
+  TOOLS --> GS[grounded_search]
+  TOOLS --> EX[fetch_and_extract]
+  TOOLS --> CL[extract_claims]
+  TOOLS --> CD[classify_disagreement]
+  TOOLS --> EC[build_evidence_cards]
+  TOOLS --> BC[build_clusters]
+  TOOLS --> CS[optimize_choice_set]
 
+  API -->|L1 memory, L2 GCS, L3 live| CACHE[Cache Hierarchy]
   API --> FS[Firestore]
   API --> ST[Cloud Storage]
-
-  API --> W
-  LIVE --> W
 ```
 
 ---
@@ -215,18 +220,23 @@ sequenceDiagram
   participant Store
 
   User->>Client: Speak + provide URL
-  Client->>Orchestrator: Create session + send URL
-  Orchestrator->>Client: Session id + ephemeral token
-  Client->>GeminiLive: Start WS stream (audio in)
+  Client->>Orchestrator: Create session (REST)
+  Orchestrator->>Client: Session id
+  Client->>Orchestrator: Open WS (audio proxy)
+  Orchestrator->>GeminiLive: Open server-side WS
+  Client->>Orchestrator: Stream audio chunks (WS)
+  Orchestrator->>GeminiLive: Relay audio chunks
   GeminiLive->>Orchestrator: Tool calls (structured)
   Orchestrator->>Tools: search/extract/classify/cluster/optimize
   Tools->>Orchestrator: Evidence cards + trace + choice set
   Orchestrator->>Store: Persist session outputs
-  Orchestrator->>GeminiLive: Provide grounded results
-  GeminiLive->>Client: Stream audio response
-  Orchestrator->>Client: Stream UI artifacts (SSE/WS)
+  Orchestrator->>GeminiLive: Tool responses
+  GeminiLive->>Orchestrator: Stream audio response
+  Orchestrator->>Client: Relay audio + transcripts (WS)
+  Orchestrator->>Client: Stream UI artifacts (SSE)
   User->>Client: Interrupt, redirect
-  Client->>GeminiLive: Barge-in audio
+  Client->>Orchestrator: Barge-in audio (WS)
+  Orchestrator->>GeminiLive: Relay barge-in
 ```
 
 ### 7.2 Output artifacts
@@ -243,44 +253,58 @@ sequenceDiagram
 
 ## 8) Tooling details
 
-### 8.1 Core tools (strict JSON)
+### 8.1 Core tool modules (`@oryn/tools`)
 
-1) `grounded_search(plan) -> results[]`
-- plan includes multiple queries:
-  - corroboration query
-  - counter-frame query
-  - primary-source query
-- returns URLs, titles, snippets, and metadata
+1) `grounded_search(query, ai, model) -> {hits[], resultsCount}`
+- uses Gemini grounding to search the web
+- returns URLs, titles, snippets, and domain metadata
 
-2) `fetch_and_extract(url) -> {title, date, author, text, quotes[]}`
-- extracts clean text
+2) `fetch_and_extract(url) -> {title, text, quotes[]}`
+- extracts clean text (HTML stripped + sanitized)
 - returns representative quotes for evidence cards
 
-3) `extract_claims(text) -> claims[]`
-- returns atomic claims
-- tags each as factual, causal, definitional, predictive, value statement
+3) `extract_claims(text, ai?, model?) -> claims[]`
+- returns atomic claims tagged by disagreement type (Factual, Causal, Definition, Values, Prediction)
+- uses Gemini structured JSON output when available, heuristic fallback otherwise
 
-4) `classify_disagreement(claims, sources) -> disputes[]`
-- assigns dispute types
-- identifies which claims are actually values tradeoffs
+4) `classify_disagreement(claims, sources, ai?, model?) -> disputes[]`
+- assigns dispute types by comparing claims against source evidence
+- uses Gemini structured JSON output when available, heuristic fallback otherwise
 
-5) `build_evidence_cards(claims, sources) -> cards[]`
-- for each claim:
-  - quote or passage
-  - corroborating sources
-  - counter sources
-  - uncertainty flags
+5) `build_evidence_cards(input) -> cards[]`
+- for each claim: quote/passage, corroborating sources, counter sources, uncertainty flags
 
-6) `optimize_choice_set(cards, user_profile) -> choice_set[]`
-- picks 3 items with explicit objective:
-  - maximize frame coverage
-  - maximize independent corroboration
-  - keep high credibility
-  - avoid redundancy
+6) `build_clusters(cards) -> clusters[]`
+- groups evidence cards into disagreement clusters by type
+- generates representative claims and source diversity stats per cluster
 
-### 8.2 Optional tools
-- `summarize_differences(cluster) -> {differences, missing_info}`
-- `generate_questions(dispute_type) -> prompts[]`
+7) `optimize_choice_set(cards, hits, constraints) -> choice_set[]`
+- picks 3 items maximizing: frame coverage, independent corroboration, credibility, low redundancy
+
+8) `TTLCache<T>` (cache module)
+- in-memory TTL cache used for search results (5 min) and extractions (10 min)
+
+### 8.2 Gemini Live function declarations
+
+The backend declares 7 function tools for Gemini Live (in `apps/api/src/live/tooling.ts`):
+
+1) `oryn_get_evidence_pack` — composite tool: runs the full analysis pipeline and returns a trimmed evidence pack (cards, clusters, choice set, trace)
+2) `oryn_grounded_search` — search the web for sources matching queries
+3) `oryn_fetch_and_extract` — fetch a URL and extract clean text with quotes
+4) `oryn_extract_claims` — extract atomic claims from text with disagreement tags
+5) `oryn_classify_disagreement` — classify disagreement types for claims against sources
+6) `oryn_build_evidence_cards` — build evidence cards from claims and search results
+7) `oryn_optimize_choice_set` — select 3 optimal next-reads from evidence cards
+
+### 8.3 Cache hierarchy
+
+- **L1**: in-memory `TTLCache` — search (5 min TTL), extraction (10 min TTL)
+- **L2**: GCS persistent cache (`apps/api/src/core/storageCache.ts`) — stores extracted articles as JSON in a Cloud Storage bucket (requires `ORYN_GCS_ENABLE=true` and `ORYN_GCS_BUCKET`)
+- **L3**: live fetch — falls through to real HTTP fetch + extraction
+
+### 8.4 Rate limiting
+
+- IP-based rate limiting middleware (`apps/api/src/middleware/rate-limit.ts`) applied to the Live WebSocket endpoint (3 connections per IP per minute)
 
 ---
 
@@ -369,23 +393,29 @@ Do not pretend to know “true ideology” of sources. Instead:
 
 ---
 
-## 14) Repository layout (suggested)
+## 14) Repository layout
 
 ```text
 /
   apps/
     web/                 # Next.js UI
-    api/                 # Cloud Run service (orchestrator)
+    api/                 # Cloud Run service (orchestrator + Live proxy)
+      src/
+        pipeline/        # analyze.ts — thin orchestrator importing @oryn/tools
+        live/            # routes.ts, tooling.ts — Gemini Live WS + 7 function declarations
+        core/            # storageCache.ts — GCS L2 cache
+        middleware/       # rate-limit.ts — IP-based rate limiting
   packages/
-    agent/               # ADK config, prompts, policies
-    tools/               # retriever, extractor, classifier, optimizer
-    shared/              # types, utilities
+    tools/               # @oryn/tools — 8 modules (see section 8.1)
+    agent/               # @oryn/agent — system-instruction builder + epistemic contract
+    shared/              # @oryn/shared — types + protocol
   infra/
-    terraform/           # optional IaC
+    cloudrun/            # deploy + cleanup scripts
   docs/
-    architecture.md      # this file
+    architecture.md      # concise architecture overview
     demo_script.md
     threat_model.md
+  architecture-4.md      # this file — full architecture spec
   README.md
 ```
 

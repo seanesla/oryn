@@ -71,6 +71,15 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
   --role "roles/aiplatform.user" \
   --quiet
 
+# Grant Storage access if GCS caching is enabled
+if [ -n "${ORYN_GCS_BUCKET:-}" ]; then
+  echo "Granting Storage objectUser role to: ${SA_EMAIL} (for GCS artifact caching)"
+  gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member "serviceAccount:${SA_EMAIL}" \
+    --role "roles/storage.objectUser" \
+    --quiet
+fi
+
 echo "Building container image: ${IMAGE}"
 PROJECT_NUMBER=$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')
 CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
@@ -117,6 +126,8 @@ gcloud run deploy "${SERVICE_NAME}" \
   --set-env-vars "CORS_ORIGIN=${CORS_ORIGIN:-}" \
   --set-env-vars "SESSION_STORE=${SESSION_STORE:-}" \
   --set-env-vars "FIRESTORE_SESSIONS_COLLECTION=${FIRESTORE_SESSIONS_COLLECTION:-}" \
+  --set-env-vars "ORYN_GCS_ENABLE=${ORYN_GCS_ENABLE:-}" \
+  --set-env-vars "ORYN_GCS_BUCKET=${ORYN_GCS_BUCKET:-}" \
   --quiet
 
 echo "Done. Fetch service URL:"

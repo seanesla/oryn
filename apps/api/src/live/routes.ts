@@ -11,6 +11,8 @@ import type {
 
 import { liveFunctionDeclarations, runLiveTool } from "./tooling";
 import { createGenAiClient } from "../genai/client";
+import { makeSystemInstruction } from "@oryn/agent";
+import { rateLimitHook } from "../middleware/rate-limit";
 
 function safeJsonParse(input: string): unknown {
   try {
@@ -56,43 +58,17 @@ function appendTranscript(prev: SessionArtifacts, chunk: TranscriptChunk): Sessi
   };
 }
 
-function makeSystemInstruction(session: SessionArtifacts) {
-  const cards = session.evidenceCards
-    .slice(0, 6)
-    .map((c) => {
-      const ev = c.evidence[0];
-      const ce = c.counterEvidence[0];
-      return [
-        `- [${c.id}] ${c.claimText} (${c.disagreementType}, ${c.confidence})`,
-        ev ? `  - evidence: "${ev.quote}" (${ev.url})` : "  - evidence: (none)",
-        ce ? `  - counter: "${ce.quote}" (${ce.url})` : "  - counter: (none)",
-      ].join("\n");
-    })
-    .join("\n");
-
-  return [
-    "You are Oryn, a live co-reading agent.",
-    "",
-    "Epistemic contract:",
-    "- Do not state factual claims unless you can reference an evidence card id (e.g. card_1) that includes a URL.",
-    "- If evidence is missing, say 'unknown' and ask one narrowing question.",
-    "- Always include a counter-frame when discussing a claim.",
-    "",
-    session.url ? `Session URL: ${session.url}` : "Session URL: (none)",
-    session.title ? `Title: ${session.title}` : "Title: (none)",
-    "",
-    session.evidenceCards.length > 0 ? "Current evidence cards:" : "Current evidence cards: (none yet)",
-    cards || "(none)",
-    "",
-    "Tools:",
-    "- Always call oryn_get_evidence_pack BEFORE answering. Use the returned evidence card ids + URLs.",
-  ].join("\n");
-}
-
 export async function registerLiveRoutes(server: FastifyInstance) {
   server.get(
     "/v1/sessions/:id/live",
-    { websocket: true },
+    {
+      websocket: true,
+      onRequest: rateLimitHook({
+        windowMs: 60_000,
+        maxRequests: 3,
+        keyFn: (req) => `live-ws:${req.ip}`,
+      }),
+    },
     async (connection, req) => {
       const ws = (connection as any)?.socket ?? (connection as any);
       if (!ws || typeof ws.send !== "function") {

@@ -1,81 +1,30 @@
-import type { GoogleGenAI } from "@google/genai";
-
-import type {
-  DisagreementCluster,
-  DisagreementType,
-  EvidenceCard,
-  EvidenceQuote,
-  SessionArtifacts,
-  TraceQuery,
-} from "@oryn/shared";
+import type { SessionArtifacts, TraceQuery } from "@oryn/shared";
+import {
+  groundedSearch,
+  fetchAndExtract,
+  extractClaims,
+  buildEvidenceCards,
+  buildClusters,
+  optimizeChoiceSet,
+  domainFromUrl,
+  clamp,
+  TTLCache,
+} from "@oryn/tools";
+import type { SearchHit, ExtractedContent } from "@oryn/tools";
 import type { SessionEventBus, SessionStore } from "../core/types";
 import { createGenAiClient } from "../genai/client";
-
-function domainFromUrl(url: string) {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "";
-  }
-}
+import { readCachedExtraction, writeCachedExtraction } from "../core/storageCache";
 
 function nowId(prefix: string) {
   return `${prefix}_${Date.now()}`;
 }
 
-function splitSentences(text: string) {
-  // Simple heuristic splitter; avoids pulling in heavy deps for the hackathon.
-  return text
-    .replace(/\s+/g, " ")
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
+// Module-level caches for repeated analyses
+const searchCache = new TTLCache<{ hits: SearchHit[]; resultsCount: number }>(5 * 60_000);
+const extractCache = new TTLCache<ExtractedContent>(10 * 60_000);
 
-async function fetchWithTimeout(url: string, timeoutMs: number) {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        // Some sites block default user agents.
-        "user-agent": "oryn-hackathon/0.1 (+https://github.com)",
-        accept: "text/html,application/xhtml+xml",
-      },
-    });
-    return res;
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-function stripHtml(html: string) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<!--([\s\S]*?)-->/g, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function sanitizeRetrievedText(text: string) {
-  // Lightweight prompt injection defense.
-  // We treat retrieved text as hostile and strip common instruction-like phrases.
-  return text
-    .replace(/ignore\s+(all\s+)?previous\s+instructions/gi, "[removed]")
-    .replace(/system\s+prompt/gi, "[removed]")
-    .replace(/you\s+are\s+chatgpt/gi, "[removed]")
-    .trim();
-}
-
-async function mapLimit<T, R>(items: Array<T>, limit: number, fn: (item: T) => Promise<R>): Promise<Array<R>> {
-  const out: Array<R> = [];
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
   const queue = [...items];
   const workers = Array.from({ length: Math.max(1, limit) }).map(async () => {
     while (queue.length) {
@@ -88,149 +37,50 @@ async function mapLimit<T, R>(items: Array<T>, limit: number, fn: (item: T) => P
   return out;
 }
 
-async function fetchAndExtract(url: string): Promise<{ title?: string; text: string; quotes: Array<string> }> {
-  const res = await fetchWithTimeout(url, 2_500);
-  const html = await res.text();
-  const title = (() => {
-    const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-    return m?.[1]?.trim();
-  })();
-
-  const text = sanitizeRetrievedText(stripHtml(html));
-  const sentences = splitSentences(text);
-  const quotes = sentences
-    .filter((s) => s.length >= 40)
-    .slice(0, 8)
-    .map((s) => clamp(s, 220));
-
-  return { title, text, quotes };
+function uniqByUrl(hits: SearchHit[]): SearchHit[] {
+  const seen = new Set<string>();
+  return hits.filter((h) => {
+    if (seen.has(h.url)) return false;
+    seen.add(h.url);
+    return true;
+  });
 }
 
-function clamp(s: string, max: number) {
-  if (s.length <= max) return s;
-  return `${s.slice(0, max - 1)}…`;
-}
+async function cachedSearch(queryText: string): Promise<{ hits: SearchHit[]; resultsCount: number }> {
+  const cached = searchCache.get(queryText);
+  if (cached) return cached;
 
-function guessDisagreementType(claimText: string): DisagreementType {
-  const c = claimText.toLowerCase();
-  if (/(means|defined as|definition|metric|measured as)/.test(c)) return "Definition";
-  if (/(will|forecast|expected|likely|projected|by \d{4})/.test(c)) return "Prediction";
-  if (/(should|ought|fair|unfair|tradeoff|values|moral)/.test(c)) return "Values";
-  if (/(cause|led to|due to|because|resulted in|impact|reduced|increased)/.test(c)) return "Causal";
-  return "Factual";
-}
-
-type SearchHit = {
-  title: string;
-  url: string;
-  snippet?: string;
-  domain?: string;
-};
-
-async function groundedSearch(queryText: string): Promise<{ hits: Array<SearchHit>; resultsCount: number }> {
-  let ai: GoogleGenAI;
+  let ai;
   try {
     ai = createGenAiClient().ai;
   } catch {
     return { hits: [], resultsCount: 0 };
   }
-  const model = (process.env.GEMINI_MODEL ?? "").trim() || "gemini-2.0-flash";
-  const resp = await ai.models.generateContent({
-    model,
-    contents: queryText,
-    config: {
-      tools: [{ googleSearch: {} }],
-    },
-  });
-
-  const md: any = resp.candidates?.[0]?.groundingMetadata;
-  const chunks: Array<any> = md?.groundingChunks ?? [];
-
-  const hits: Array<SearchHit> = [];
-  for (const c of chunks) {
-    const web = c?.web;
-    if (!web?.uri) continue;
-    hits.push({
-      title: web.title ?? web.uri,
-      url: web.uri,
-      domain: domainFromUrl(web.uri),
-      snippet: undefined,
-    });
-  }
-
-  // Fall back: if no grounding chunks, try to at least surface the model text.
-  if (hits.length === 0 && resp.text) {
-    // no urls, so no hits.
-  }
-
-  return { hits: uniqByUrl(hits).slice(0, 12), resultsCount: chunks.length };
+  const model = (process.env.GEMINI_MODEL ?? "").trim() || undefined;
+  const result = await groundedSearch(queryText, ai, model);
+  searchCache.set(queryText, result);
+  return result;
 }
 
-function uniqByUrl(hits: Array<SearchHit>) {
-  const seen = new Set<string>();
-  const out: Array<SearchHit> = [];
-  for (const h of hits) {
-    if (seen.has(h.url)) continue;
-    seen.add(h.url);
-    out.push(h);
-  }
-  return out;
-}
+async function cachedFetchAndExtract(url: string): Promise<ExtractedContent | null> {
+  // L1: in-memory TTL cache
+  const cached = extractCache.get(url);
+  if (cached) return cached;
 
-function pickQuoteFromSnippetOrTitle(h: SearchHit) {
-  return clamp(h.snippet ?? h.title ?? h.url, 220);
-}
-
-function confidenceFrom(evidenceCount: number, counterCount: number) {
-  if (evidenceCount >= 1 && counterCount >= 1) return "Medium" as const;
-  if (evidenceCount >= 1) return "Low" as const;
-  return "Low" as const;
-}
-
-function buildClusters(cards: Array<EvidenceCard>): Array<DisagreementCluster> {
-  const byType = new Map<DisagreementType, Array<EvidenceCard>>();
-  for (const c of cards) {
-    const arr = byType.get(c.disagreementType) ?? [];
-    arr.push(c);
-    byType.set(c.disagreementType, arr);
+  // L2: GCS persistent cache (if enabled)
+  const gcsCached = await readCachedExtraction(url);
+  if (gcsCached) {
+    extractCache.set(url, gcsCached);
+    return gcsCached;
   }
 
-  const clusters: Array<DisagreementCluster> = [];
-  let idx = 1;
-  for (const [t, arr] of byType.entries()) {
-    const allDomains = arr
-      .flatMap((c) => [...c.evidence, ...c.counterEvidence])
-      .map((q) => q.domain)
-      .filter(Boolean) as Array<string>;
-    const counts = new Map<string, number>();
-    for (const d of allDomains) counts.set(d, (counts.get(d) ?? 0) + 1);
-
-    clusters.push({
-      id: `cluster_${idx++}`,
-      title:
-        t === "Definition"
-          ? "What terms and metrics mean"
-          : t === "Causal"
-            ? "Causal mechanism and confounders"
-            : t === "Values"
-              ? "Tradeoffs and priorities"
-              : t === "Prediction"
-                ? "Forecasts and uncertainty"
-                : "What is factually true",
-      claimIds: arr.map((c) => c.id),
-      representativeClaims: arr.slice(0, 2).map((c) => c.claimText),
-      sources: Array.from(counts.entries()).map(([domain, count]) => ({ domain, count })),
-      whatsMissing: [
-        "A primary-source definition or dataset link.",
-        "An independent replication or third-party critique.",
-      ],
-    });
+  // L3: live fetch
+  const result = await fetchAndExtract(url).catch(() => null);
+  if (result) {
+    extractCache.set(url, result);
+    writeCachedExtraction(url, result).catch(() => {}); // best-effort persist
   }
-  return clusters;
-}
-
-function calcCitationsUsed(cards: Array<EvidenceCard>) {
-  return cards.reduce((acc, c) => acc + c.evidence.length + c.counterEvidence.length, 0);
+  return result;
 }
 
 export async function runSessionAnalysis(input: {
@@ -239,9 +89,9 @@ export async function runSessionAnalysis(input: {
   bus: SessionEventBus;
   focus?: string;
   logger: {
-    info: (...args: Array<unknown>) => void;
-    warn: (...args: Array<unknown>) => void;
-    error: (...args: Array<unknown>) => void;
+    info: (...args: unknown[]) => void;
+    warn: (...args: unknown[]) => void;
+    error: (...args: unknown[]) => void;
   };
 }): Promise<SessionArtifacts | null> {
   const { sessionId, store, bus, logger } = input;
@@ -249,7 +99,6 @@ export async function runSessionAnalysis(input: {
 
   const session = await store.get(sessionId);
   if (!session) return null;
-  let extracted: Awaited<ReturnType<typeof fetchAndExtract>> | null = null;
 
   const update = async (fn: (prev: SessionArtifacts) => SessionArtifacts) => {
     const current = (await store.get(sessionId)) ?? session;
@@ -259,7 +108,7 @@ export async function runSessionAnalysis(input: {
     return next;
   };
 
-  // Mark pipeline start.
+  // Mark pipeline start
   await update((prev) => ({
     ...prev,
     pipeline: { ...prev.pipeline, evidenceBuilding: true },
@@ -267,8 +116,9 @@ export async function runSessionAnalysis(input: {
   }));
 
   // 1) Content extraction
+  let extracted: ExtractedContent | null = null;
   if (session.mode === "co-reading" && session.url) {
-    extracted = await fetchAndExtract(session.url).catch(() => null);
+    extracted = await cachedFetchAndExtract(session.url);
     await update((prev) => ({
       ...prev,
       domain: domainFromUrl(prev.url ?? "") || prev.domain,
@@ -277,22 +127,33 @@ export async function runSessionAnalysis(input: {
     }));
   }
 
-  // 2) Claims extraction (heuristic for now)
+  // 2) Claims extraction (Gemini-powered with heuristic fallback)
   let baseText = session.title ?? session.url ?? "";
   if (extracted?.text) baseText = extracted.text;
 
-  const claims = splitSentences(baseText).slice(0, 4);
-  const claimTexts = claims.length > 0 ? claims : session.url ? ["What is missing or contested in this article?"] : [];
+  let ai;
+  try {
+    ai = createGenAiClient().ai;
+  } catch {
+    // No credentials — heuristic fallback
+  }
+  const model = (process.env.GEMINI_MODEL ?? "").trim() || undefined;
+  const extractedClaims = await extractClaims(baseText, ai, model);
+  const claimTexts = extractedClaims.length > 0
+    ? extractedClaims.map((c) => c.text)
+    : session.url
+      ? ["What is missing or contested in this article?"]
+      : [];
+  const disagreementTypes = extractedClaims.map((c) => c.tag);
 
   await update((prev) => ({
     ...prev,
     pipeline: { ...prev.pipeline, claimsExtracted: true },
   }));
 
-  // 3) Retrieval + evidence building
-  const toolCalls: Array<TraceQuery> = [];
-  const cardInputs: Record<string, { toolCallIds: Array<string> }> = {};
-
+  // 3) Retrieval
+  const toolCalls: TraceQuery[] = [];
+  const cardInputs: Record<string, { toolCallIds: string[] }> = {};
   const url = session.url;
 
   if (url && extracted) {
@@ -306,6 +167,7 @@ export async function runSessionAnalysis(input: {
       selectionWhy: "Extracts readable text and representative quotes for evidence cards.",
     });
   }
+
   const focus = input.focus?.trim();
   const focusSuffix = focus ? ` (focus: ${clamp(focus, 80)})` : "";
   const q1 = url
@@ -319,13 +181,13 @@ export async function runSessionAnalysis(input: {
   const t2Id = nowId("tool");
 
   const [r1, r2] = await Promise.all([
-    groundedSearch(q1).catch((err) => {
+    cachedSearch(q1).catch((err) => {
       logger.warn({ err }, "grounded search failed (q1)");
-      return { hits: [], resultsCount: 0 };
+      return { hits: [] as SearchHit[], resultsCount: 0 };
     }),
-    groundedSearch(q2).catch((err) => {
+    cachedSearch(q2).catch((err) => {
       logger.warn({ err }, "grounded search failed (q2)");
-      return { hits: [], resultsCount: 0 };
+      return { hits: [] as SearchHit[], resultsCount: 0 };
     }),
   ]);
 
@@ -353,26 +215,16 @@ export async function runSessionAnalysis(input: {
     selectionWhy: "Adds missing distribution lens and an explicit counter-frame.",
   });
 
+  // 4) Extract from top hits
   const maxCards = 4;
-  const cards: Array<EvidenceCard> = [];
-
-  // For higher-trust cards, try to fetch and extract a short passage from
-  // the specific URLs we plan to cite.
-  const urlsToExtract = uniqByUrl(
-    [...r1.hits.slice(0, maxCards), ...r2.hits.slice(0, maxCards)].map((h) => ({
-      title: h.title,
-      url: h.url,
-      domain: h.domain,
-      snippet: h.snippet,
-    }))
-  )
+  const urlsToExtract = uniqByUrl([...r1.hits.slice(0, maxCards), ...r2.hits.slice(0, maxCards)])
     .map((h) => h.url)
     .filter(Boolean)
     .slice(0, maxCards * 2);
 
-  const extractedByUrl = new Map<string, Awaited<ReturnType<typeof fetchAndExtract>>>();
+  const extractedByUrl = new Map<string, ExtractedContent>();
   await mapLimit(urlsToExtract, 4, async (u) => {
-    const ex = await fetchAndExtract(u).catch(() => null);
+    const ex = await cachedFetchAndExtract(u);
     if (ex) extractedByUrl.set(u, ex);
     toolCalls.push({
       id: nowId("tool"),
@@ -386,128 +238,31 @@ export async function runSessionAnalysis(input: {
     return true;
   });
 
-  for (const [idx, cText] of claimTexts.slice(0, maxCards).entries()) {
-    const disagreementType = guessDisagreementType(cText);
-    const evidenceHits = r1.hits.slice(idx, idx + 1);
-    const counterHits = r2.hits.slice(idx, idx + 1);
+  // 5) Build evidence cards
+  const cards = buildEvidenceCards({
+    claimTexts: claimTexts.slice(0, maxCards),
+    disagreementTypes,
+    evidenceHits: r1.hits,
+    counterHits: r2.hits,
+    extractedByUrl,
+    sessionUrl: url,
+    sessionTitle: session.title,
+    toolCallIds: [t1Id, t2Id],
+  });
 
-    const evidence: Array<EvidenceQuote> = evidenceHits.map((h) => {
-      const ex = extractedByUrl.get(h.url);
-      return {
-        quote: clamp(ex?.quotes[0] ?? pickQuoteFromSnippetOrTitle(h), 220),
-        url: h.url,
-        title: ex?.title ?? h.title,
-        domain: h.domain ?? domainFromUrl(h.url),
-      };
-    });
-
-    const counterEvidence: Array<EvidenceQuote> = counterHits.map((h) => {
-      const ex = extractedByUrl.get(h.url);
-      return {
-        quote: clamp(ex?.quotes[0] ?? pickQuoteFromSnippetOrTitle(h), 220),
-        url: h.url,
-        title: ex?.title ?? h.title,
-        domain: h.domain ?? domainFromUrl(h.url),
-      };
-    });
-
-    // Local fallback: if we have no grounded hits, use the article itself as the evidence surface.
-    if (evidence.length === 0 && url) {
-      evidence.push({
-        quote: clamp(cText, 220),
-        url,
-        title: session.title,
-        domain: domainFromUrl(url),
-      });
-    }
-    if (counterEvidence.length === 0 && url) {
-      counterEvidence.push({
-        quote: "Missing frame: the article may omit relevant counter-evidence or alternative definitions.",
-        url,
-        title: session.title,
-        domain: domainFromUrl(url),
-      });
-    }
-
-    // Fallback for claim-check mode when grounding is unavailable.
-    // Keep the epistemic contract intact by always attaching a URL.
-    if (evidence.length === 0 && !url) {
-      const q = `primary sources for claim: ${cText}`;
-      evidence.push({
-        quote: clamp(cText, 220),
-        url: `https://www.google.com/search?q=${encodeURIComponent(q)}`,
-        title: `Search: ${clamp(q, 72)}`,
-        domain: "google.com",
-      });
-    }
-    if (counterEvidence.length === 0 && !url) {
-      const q = `counter-evidence for claim: ${cText}`;
-      counterEvidence.push({
-        quote: "Missing frame: seek the strongest critique and alternative assumptions.",
-        url: `https://www.google.com/search?q=${encodeURIComponent(q)}`,
-        title: `Search: ${clamp(q, 72)}`,
-        domain: "google.com",
-      });
-    }
-
-    const id = `card_${idx + 1}`;
-    cardInputs[id] = { toolCallIds: [t1Id, t2Id] };
-    cards.push({
-      id,
-      claimText: clamp(cText, 180),
-      disagreementType,
-      confidence: confidenceFrom(evidence.length, counterEvidence.length),
-      evidence,
-      counterEvidence,
-      pinned: idx === 0,
-      traceRef: { toolCallIds: [t1Id, t2Id] },
-    });
+  for (const card of cards) {
+    cardInputs[card.id] = { toolCallIds: [t1Id, t2Id] };
   }
 
+  // 6) Build clusters
   const clusters = buildClusters(cards);
-  const citationsUsed = calcCitationsUsed(cards);
+  const citationsUsed = cards.reduce((acc, c) => acc + c.evidence.length + c.counterEvidence.length, 0);
 
-  const choice = [...r1.hits, ...r2.hits]
-    .slice(0, 8)
-    .map((h, i) => ({
-      id: `next_${i + 1}`,
-      title: h.title,
-      url: h.url,
-      domain: h.domain ?? domainFromUrl(h.url),
-      frameLabel: i === 0 ? "Measurement / definitions" : i === 1 ? "Counter-frame" : "Corroboration",
-      reason:
-        i === 0
-          ? "Clarifies definitions and measurement." 
-          : i === 1
-            ? "Adds an explicit critique or alternative frame." 
-            : "Provides independent context to confirm or falsify the claim.",
-      opensMissingFrame: i < 2,
-      isPrimarySource: /\.(gov|edu)$/.test(h.domain ?? ""),
-    }))
-    .filter((x) => Boolean(x.url) && Boolean(x.domain));
-
-  const choiceSet = choice.slice(0, 3);
-  if (choiceSet.length < 3) {
-    const fillQueries = [q1, q2, url ? `site:${domainFromUrl(url)} ${url}` : "corroborate claim with primary sources"];
-    for (const q of fillQueries) {
-      if (choiceSet.length >= 3) break;
-      const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
-      choiceSet.push({
-        id: `next_fallback_${choiceSet.length + 1}`,
-        title: `Search: ${clamp(q, 72)}`,
-        url: searchUrl,
-        domain: "google.com",
-        frameLabel: "Search / grounding",
-        reason: "Fallback when grounded sources are unavailable in this environment.",
-        opensMissingFrame: true,
-        isPrimarySource: false,
-      });
-    }
-  }
+  // 7) Build choice set
+  const choiceSet = optimizeChoiceSet(cards, [...r1.hits, ...r2.hits], session.constraints);
 
   const endMs = Date.now();
   const latency = endMs - startMs;
-
   const unsupportedClaims = cards.filter((c) => c.evidence.length === 0 || c.counterEvidence.length === 0).length;
 
   const final = await update((prev) => ({
@@ -515,14 +270,8 @@ export async function runSessionAnalysis(input: {
     evidenceCards: cards,
     clusters,
     choiceSet,
-    trace: {
-      toolCalls,
-      cardInputs,
-    },
-    epistemic: {
-      unsupportedClaims,
-      citationsUsed,
-    },
+    trace: { toolCalls, cardInputs },
+    epistemic: { unsupportedClaims, citationsUsed },
     latencyMs: { current: latency, p50: latency },
     pipeline: { ...prev.pipeline, evidenceBuilding: false },
   }));

@@ -16,8 +16,11 @@ Live co-reading agent for the Gemini Live Agent Challenge.
 
 - `apps/web` Next.js UI
 - `apps/api` Fastify orchestrator + Gemini Live proxy
+- `packages/tools` (`@oryn/tools`) -- 8 tool modules: grounded-search, fetch-and-extract, extract-claims, classify-disagreement, build-evidence-cards, build-clusters, optimize-choice-set, cache
+- `packages/agent` (`@oryn/agent`) -- system-instruction builder + epistemic contract
 - `packages/shared` shared types/protocol
-- `docs/architecture.md` architecture + diagrams
+- `docs/architecture.md` architecture overview
+- `architecture-4.md` full architecture spec with diagrams
 
 ## Architecture diagrams
 
@@ -100,6 +103,8 @@ Backend (`apps/api`):
 - `CORS_ORIGIN` (optional; allow your deployed web origin)
 - `SESSION_STORE` (default: `memory`; set to `firestore` to persist sessions)
 - `FIRESTORE_SESSIONS_COLLECTION` (default: `oryn_sessions`)
+- `ORYN_GCS_ENABLE` (set to `true` to enable GCS artifact caching)
+- `ORYN_GCS_BUCKET` (GCS bucket name for cached extractions)
 
 Web (`apps/web`):
 
@@ -143,6 +148,7 @@ export NEXT_PUBLIC_API_BASE_URL=https://YOUR_CLOUD_RUN_URL
 
 ## Docs
 
-- `docs/architecture.md`
+- `architecture-4.md` -- full architecture spec (sections 1-15, diagrams)
+- `docs/architecture.md` -- concise architecture overview
 - `docs/demo_script.md`
 - `docs/threat_model.md`

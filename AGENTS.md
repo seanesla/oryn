@@ -2,9 +2,11 @@
 
 This repository is a workspace monorepo for `oryn`.
 
-- `apps/api` — Fastify backend, session API, Gemini Live WS, SSE events, and pipeline orchestration.
+- `apps/api` — Fastify backend, session API, Gemini Live WS proxy, SSE events, and pipeline orchestration.
 - `apps/web` — Next.js client app with real-time UI and WebSocket + SSE runtime.
-- `packages/shared` — shared TypeScript types and wire protocol.
+- `packages/tools` — `@oryn/tools` — 8 tool modules: `grounded-search`, `fetch-and-extract`, `extract-claims`, `classify-disagreement`, `build-evidence-cards`, `build-clusters`, `optimize-choice-set`, `cache`.
+- `packages/agent` — `@oryn/agent` — system instruction builder and epistemic contract text.
+- `packages/shared` — `@oryn/shared` — shared TypeScript types and wire protocol.
 - `infra` — Cloud Run deployment scripts and cleanup helpers.
 
 Unless explicitly changed by newer higher-priority rules, all agents should follow this file.
@@ -114,7 +116,7 @@ When touching shell scripts, validate quickly with `bash -n` and keep executable
 Use this order in each file:
 
 1. third-party packages
-2. shared package imports (`@oryn/shared`)
+2. workspace package imports (`@oryn/tools`, `@oryn/agent`, `@oryn/shared`)
 3. local project imports
 
 Split groups with one blank line.
@@ -153,6 +155,10 @@ Split groups with one blank line.
 - Mutations should persist state then publish once via event bus.
 - SSE endpoints must set required headers before writing stream bytes.
 - Keep request handlers short and delegate heavy logic to pipeline/services.
+- `apps/api/src/pipeline/analyze.ts` is a thin orchestrator — it imports tool functions from `@oryn/tools` and wires them together. Do not add tool logic inline.
+- `apps/api/src/live/tooling.ts` declares all 7 Gemini function declarations and dispatches to `@oryn/tools` modules. System instruction comes from `@oryn/agent`.
+- `apps/api/src/middleware/rate-limit.ts` provides IP/session-based rate limiting. Apply via Fastify `onRequest` hooks.
+- `apps/api/src/core/storageCache.ts` provides optional GCS L2 caching (enabled via `ORYN_GCS_ENABLE` + `ORYN_GCS_BUCKET` env vars).
 
 ### Streaming behavior
 
@@ -174,11 +180,12 @@ Split groups with one blank line.
 - Prefer `useMemo`, `useCallback`, and clear dependency arrays for heavy UI computations.
 - Cleanup resources in effect returns (event listeners, sockets, audio contexts, timers).
 
-### Shared package rules
+### Package rules
 
-- Do not place app-only logic under `packages/shared`.
-- Only keep serializable types, protocol unions, and shared constants there.
-- Export through `packages/shared/src/index.ts` when adding new shared modules.
+- `packages/shared` — only serializable types, protocol unions, and shared constants. Export through `src/index.ts`.
+- `packages/tools` — stateless tool functions with typed inputs/outputs. Each tool accepts an optional `GoogleGenAI` client so tests run without credentials. Export through `src/index.ts`.
+- `packages/agent` — system instruction builder and epistemic contract. No app-specific logic; it takes a `SessionArtifacts` and returns a string.
+- Do not place app-only logic (Fastify routes, store implementations) in any `packages/` module.
 
 ### Tests and test authoring
 

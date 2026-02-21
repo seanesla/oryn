@@ -21,11 +21,14 @@ oryn is a live co-reading agent that decomposes disagreements (factual/causal/de
   - Session manager (REST)
   - Artifact streaming (SSE)
   - Live voice proxy (WS) to Gemini Live via Google GenAI SDK
-  - Tooling pipeline (analysis -> evidence cards, clusters, choice set)
+  - Tooling pipeline imports `@oryn/tools` modules (analysis -> evidence cards, clusters, choice set)
+  - System instruction built by `@oryn/agent` (includes epistemic contract)
+  - Rate limiting middleware (IP-based, on Live WS endpoint)
+  - Cache hierarchy: L1 in-memory TTL -> L2 GCS persistent -> L3 live fetch
 
 - Gemini Live API
   - Streaming ASR (input transcript), TTS audio output, output transcript
-  - Tool calling (function tools) to trigger evidence-pack building
+  - 7 function declarations: 6 individual tools + composite `oryn_get_evidence_pack`
 
 ## Architecture diagram
 
@@ -37,9 +40,10 @@ flowchart LR
   W <-->|WS audio/pcm| API
 
   API <-->|Live WS| LIVE[Gemini Live API]
-  API --> PIPE[Analysis Pipeline]
+  API -->|@oryn/tools| PIPE[Analysis Pipeline]
   PIPE --> API
 
+  API -->|L1 memory, L2 GCS, L3 live| CACHE[Cache Hierarchy]
   API --> FS[(Firestore - optional)]
   API --> ST[(Cloud Storage - optional)]
 ```
@@ -88,14 +92,17 @@ flowchart LR
 /
   apps/
     web/                 # Next.js UI
-    api/                 # Cloud Run service (orchestrator)
+    api/                 # Cloud Run service (orchestrator + Live proxy)
   packages/
-    shared/              # types + protocol
+    tools/               # @oryn/tools — 8 tool modules
+    agent/               # @oryn/agent — system-instruction + epistemic contract
+    shared/              # @oryn/shared — types + protocol
   infra/
-    cloudrun/            # deploy scripts
+    cloudrun/            # deploy + cleanup scripts
   docs/
-    architecture.md
+    architecture.md      # this file
     demo_script.md
     threat_model.md
+  architecture-4.md      # full architecture spec
   README.md
 ```

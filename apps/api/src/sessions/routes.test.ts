@@ -104,12 +104,18 @@ test("mutations: constraints, transcript, pin, regenerate", async () => {
   const pinned = afterPin.evidenceCards.find((c: any) => c.id === cardId)?.pinned;
   expect(typeof pinned).toBe("boolean");
 
-  // Regenerate choice set
+  // Regenerate choice set (now uses optimizeChoiceSet from @oryn/tools)
   const regenRes = await fetch(`${baseUrl}/v1/sessions/${session.sessionId}/choice-set/regenerate`, {
     method: "POST",
   });
   expect(regenRes.status).toBe(200);
   const afterRegen = (await regenRes.json()) as any;
   expect(afterRegen.choiceSet.length).toBe(3);
-  expect(afterRegen.choiceSet[0].reason).toMatch(/regen:/);
+  // Each item should have the stable shape: url, title, frameLabel, reason
+  for (const item of afterRegen.choiceSet) {
+    expect(item.url).toBeTypeOf("string");
+    expect(item.title).toBeTypeOf("string");
+    expect(item.frameLabel).toBeTypeOf("string");
+    expect(item.reason).toBeTypeOf("string");
+  }
 });

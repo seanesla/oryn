@@ -7,6 +7,7 @@ import { createMemorySessionStore } from "../core/memoryStore";
 import { createSessionEventBus } from "../core/eventBus";
 import type { SessionEventBus, SessionStore } from "../core/types";
 import { runSessionAnalysis } from "../pipeline/analyze";
+import { rateLimitHook } from "../middleware/rate-limit";
 
 export type ApiDeps = {
   store: SessionStore;
@@ -126,11 +127,13 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
     const session = await store.get(sessionId);
     if (!session) return reply.code(404).send({ error: "Session not found" });
 
-    const jitter = () => (Math.random() > 0.5 ? "opens a missing frame" : "primary source");
-    const next = {
-      ...session,
-      choiceSet: session.choiceSet.map((i) => ({ ...i, reason: `${i.reason} (regen: ${jitter()})` })).slice(0, 3),
-    };
+    if (session.evidenceCards.length === 0) {
+      return reply.code(400).send({ error: "No evidence cards yet. Run analysis first." });
+    }
+
+    const { optimizeChoiceSet } = await import("@oryn/tools");
+    const choiceSet = optimizeChoiceSet(session.evidenceCards, [], session.constraints);
+    const next = { ...session, choiceSet };
     await store.put(next);
     bus.publish(sessionId, next);
     return reply.send(next);
@@ -149,18 +152,28 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
     return reply.send(session);
   });
 
-  server.post("/v1/sessions/:id/analyze", async (req, reply) => {
-    const sessionId = (req.params as any).id as string;
-    const session = await store.get(sessionId);
-    if (!session) return reply.code(404).send({ error: "Session not found" });
+  server.post(
+    "/v1/sessions/:id/analyze",
+    {
+      onRequest: rateLimitHook({
+        windowMs: 60_000,
+        maxRequests: 5,
+        keyFn: (req) => `analyze:${(req.params as any).id}`,
+      }),
+    },
+    async (req, reply) => {
+      const sessionId = (req.params as any).id as string;
+      const session = await store.get(sessionId);
+      if (!session) return reply.code(404).send({ error: "Session not found" });
 
-    // Fire-and-forget analysis.
-    runSessionAnalysis({ sessionId, store, bus, logger: server.log }).catch((err) => {
-      server.log.error({ err, sessionId }, "analysis failed");
-    });
+      // Fire-and-forget analysis.
+      runSessionAnalysis({ sessionId, store, bus, logger: server.log }).catch((err) => {
+        server.log.error({ err, sessionId }, "analysis failed");
+      });
 
-    return reply.code(202).send({ ok: true });
-  });
+      return reply.code(202).send({ ok: true });
+    },
+  );
 
   server.get("/v1/sessions/:id/events", async (req, reply) => {
     const sessionId = (req.params as any).id as string;
