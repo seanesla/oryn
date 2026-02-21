@@ -64,33 +64,23 @@ function LenisGsapBridge() {
 }
 
 /**
- * Gentle between-section snap using Lenis's native `scrollTo`.
+ * Instant between-section snap using Lenis's native `scrollTo`.
  *
- * When the user stops scrolling near a pinned section boundary, this
- * component nudges the scroll to the nearest pin-start position so they
- * never get stuck in the dead zone between sections.
+ * When the user stops scrolling near a section boundary, this component
+ * nudges the scroll to land cleanly at the next/previous section start.
  *
- * Direction-aware: snaps forward (to next section start) when scrolling
- * down, backward (to previous section end) when scrolling up. This feels
- * more intentional than pure closest-boundary snapping.
+ * Direction-aware: snaps forward/backward to the next/previous section
+ * start. This feels more intentional than pure closest-boundary snapping.
  *
  * We intentionally avoid GSAP's built-in `snap` property because its
- * per-frame `scrollTo` calls conflict with Lenis's lerp interpolation,
- * resulting in sluggish or jittery snaps.
+ * per-frame `scrollTo` calls conflict with Lenis's scroll smoothing.
  */
 
 // ── Snap tuning constants ─────────────────────────────────────────────────────
 
-/**
- * Ms to wait after Lenis targetScroll stabilizes before triggering a snap.
- * Must exceed typical mouse-wheel tick intervals (~100–250 ms) to avoid
- * false triggers between individual wheel events.
- */
-const SNAP_IDLE_DELAY = 200;
-/** Programmatic scroll duration for every snap (seconds). */
-const SNAP_DURATION = 1.2;
-/** Quartic ease-out — long gentle deceleration at the tail. */
-const SNAP_EASING = (t: number) => 1 - Math.pow(1 - t, 4);
+/** Ms to wait after Lenis targetScroll stabilizes before triggering a snap. */
+// Small delay so rapid flicks aren't interrupted by premature snaps.
+const SNAP_IDLE_DELAY = 100;
 /** Fraction of viewport height used as catch radius for near-boundary nudge. */
 const SNAP_NEAR_RADIUS = 0.5;
 /** Px tolerance when comparing Lenis targetScroll to our snap target. */
@@ -102,6 +92,8 @@ const SNAP_INTERRUPT_TOLERANCE = 5;
  */
 const SNAP_GRACE_MS = 50;
 
+const SCENE_SELECTOR = "[data-landing-scene]";
+
 function LenisSectionSnap() {
   const lenis = useLenis();
   const idleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -111,6 +103,12 @@ function LenisSectionSnap() {
   /** Timestamp when the current snap started (for grace period). */
   const snapStartedAtRef = useRef(0);
 
+  /**
+   * Monotonically increasing token so an old snap's `onComplete` callback
+   * can't accidentally clear state belonging to a newer snap.
+   */
+  const snapTokenRef = useRef(0);
+
   const lastScrollRef = useRef(0);
   /** Previous frame's targetScroll — used to detect input cessation. */
   const lastTargetRef = useRef(0);
@@ -119,19 +117,25 @@ function LenisSectionSnap() {
   /** True once we've seen meaningful movement; prevents snap on page load. */
   const wasMovingRef = useRef(false);
 
-  /** Start a snap to `target`. Shared by gap snap and near-boundary nudge. */
+  /** Start an animated snap to `target`. */
   const snapTo = useCallback(
     (target: number) => {
       if (!lenis) return;
+
+      // Increment the token so any in-flight snap's onComplete becomes stale.
+      const token = ++snapTokenRef.current;
+
       isSnapping.current = true;
       snapTargetRef.current = target;
       snapStartedAtRef.current = Date.now();
+
       lenis.scrollTo(target, {
-        duration: SNAP_DURATION,
-        easing: SNAP_EASING,
         onComplete: () => {
-          isSnapping.current = false;
-          snapTargetRef.current = null;
+          // Only clear state if this is still the active snap (token matches).
+          if (snapTokenRef.current === token) {
+            isSnapping.current = false;
+            snapTargetRef.current = null;
+          }
         },
       });
     },
@@ -142,49 +146,59 @@ function LenisSectionSnap() {
     (destination: number) => {
       if (!lenis || isSnapping.current) return;
 
-      const pinned = ScrollTrigger.getAll()
-        .filter((st) => st.pin)
-        .filter((st) => Number.isFinite(st.start) && Number.isFinite(st.end))
-        .sort((a, b) => a.start - b.start);
+      const sections = Array.from(
+        document.querySelectorAll<HTMLElement>(SCENE_SELECTOR),
+      );
 
-      if (!pinned.length) return;
+      if (!sections.length) return;
 
-      // If the destination is inside a pinned range, no snap needed — the
-      // user will land inside a section's scrubbed animation.
-      for (const st of pinned) {
-        if (destination >= st.start && destination <= st.end) return;
-      }
+      const tops = sections
+        .map((el) => el.getBoundingClientRect().top + window.scrollY)
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b);
 
-      // If the destination is in a transition gap between pinned ranges
-      // (the "limbo" zone), use scroll direction to decide which section
-      // to land on.
-      for (let i = 0; i < pinned.length - 1; i++) {
-        const prev = pinned[i];
-        const next = pinned[i + 1];
-        if (destination > prev.end && destination < next.start) {
-          const target =
-            lastDirectionRef.current === 1 ? next.start : prev.end;
-          snapTo(target);
-          return;
+      if (!tops.length) return;
+
+      // Find the closest section top to `destination`.
+      // Use scroll direction as a tiebreaker when two boundaries are
+      // roughly equidistant (within 10% of viewport height).
+      const tieZone = window.innerHeight * 0.1;
+
+      let best: number | null = null;
+      let bestDist = Infinity;
+
+      for (const top of tops) {
+        const dist = Math.abs(destination - top);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = top;
         }
       }
 
-      // Otherwise nudge when near any pinned section boundary (start or end).
-      const boundaries = pinned.flatMap((st) => [st.start, st.end]);
-      let nearest = boundaries[0];
-      let minDist = Math.abs(destination - boundaries[0]);
-      for (const b of boundaries) {
-        const dist = Math.abs(destination - b);
-        if (dist < minDist) {
-          minDist = dist;
-          nearest = b;
+      if (best === null) return;
+
+      // Already essentially aligned — nothing to do.
+      if (bestDist <= 5) return;
+
+      // Tiebreaker: if two candidates are close in distance, prefer the
+      // one in the current scroll direction.
+      const dir = lastDirectionRef.current;
+      for (const top of tops) {
+        if (top === best) continue;
+        const dist = Math.abs(destination - top);
+        if (Math.abs(dist - bestDist) < tieZone) {
+          // This candidate is roughly the same distance — prefer the one
+          // that matches scroll direction.
+          const bestInDir = dir === 1 ? best > destination : best < destination;
+          const candInDir = dir === 1 ? top > destination : top < destination;
+          if (!bestInDir && candInDir) {
+            best = top;
+            break;
+          }
         }
       }
 
-      const nearThreshold = window.innerHeight * SNAP_NEAR_RADIUS;
-      if (minDist > 5 && minDist < nearThreshold) {
-        snapTo(nearest);
-      }
+      snapTo(best);
     },
     [lenis, snapTo],
   );
@@ -195,12 +209,12 @@ function LenisSectionSnap() {
   useLenis(
     (l: { velocity: number; scroll: number; targetScroll: number }) => {
       // ── Snap interruption recovery ────────────────────────────────────
-      // If the user scrolls during a programmatic snap, Lenis updates its
+      // If the user scrolls during an animated snap, Lenis updates its
       // internal targetScroll away from our snap target. Detect that and
-      // reset so future snaps aren't permanently blocked.
-      // Skip the check during the grace period (first ~50 ms) so a 1-frame
-      // delay between scrollTo and targetScroll updating doesn't cause a
-      // false-positive reset.
+      // invalidate the snap token + clear state so the stale onComplete
+      // callback becomes a no-op and future snaps aren't blocked.
+      // Skip the check during the grace period (first ~50 ms) so Lenis
+      // has time to process the scrollTo and update its targetScroll.
       if (isSnapping.current) {
         const elapsed = Date.now() - snapStartedAtRef.current;
         if (
@@ -209,6 +223,8 @@ function LenisSectionSnap() {
           Math.abs(l.targetScroll - snapTargetRef.current) >
             SNAP_INTERRUPT_TOLERANCE
         ) {
+          // Invalidate the in-flight snap's token so its onComplete is a no-op.
+          snapTokenRef.current++;
           isSnapping.current = false;
           snapTargetRef.current = null;
         }
@@ -245,8 +261,7 @@ function LenisSectionSnap() {
         idleTimer.current = undefined;
         wasMovingRef.current = false;
         // Snap based on WHERE LENIS IS HEADING (targetScroll), not where
-        // the animated scroll currently is. This fires the snap
-        // preemptively — before the user even visually reaches the gap.
+        // the animated scroll currently is.
         snapFrom(l.targetScroll);
       }, SNAP_IDLE_DELAY);
     },
@@ -267,8 +282,8 @@ export function GsapLenisProvider({ children }: { children: React.ReactNode }) {
       options={{
         autoRaf: false,
         smoothWheel: true,
-        wheelMultiplier: 0.55,
-        lerp: 0.09,
+        wheelMultiplier: 0.8,
+        lerp: 0.12,
         duration: 1.2,
         orientation: "vertical",
         gestureOrientation: "vertical",

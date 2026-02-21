@@ -11,7 +11,7 @@ import { LandingIntro } from "@/components/landing/LandingIntro";
 import { LandingDotNav } from "@/components/landing/LandingDotNav";
 import { LandingStickyBackgroundStage } from "@/components/landing/LandingStickyBackgroundStage";
 import { GsapLenisProvider } from "@/components/landing/GsapLenisProvider";
-import { AnimatedBackground } from "@/components/shell/AnimatedBackground";
+import { FallingPattern } from "@/components/ui/falling-pattern";
 import { LeftNav } from "@/components/shell/LeftNav";
 import { TopBar } from "@/components/shell/TopBar";
 
@@ -19,7 +19,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const shouldReduceMotion = useReducedMotion();
   const isLanding = pathname === "/";
-  const [introComplete, setIntroComplete] = useState(!isLanding || Boolean(shouldReduceMotion));
+  const [introComplete, setIntroComplete] = useState(
+    !isLanding || Boolean(shouldReduceMotion)
+  );
   const handleIntroComplete = useCallback(() => setIntroComplete(true), []);
 
   // Lock body scroll while the intro animation is playing so the user
@@ -84,8 +86,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider>
-      <div className={isLanding ? "app-bg app-bg-dynamic app-bg-landing-page" : "app-bg app-bg-dynamic"}>
-        {!isLanding ? <AnimatedBackground /> : null}
+      <div className={isLanding ? "app-bg app-bg-dynamic app-bg-landing-page" : "app-bg app-bg-landing-page"}>
+        {!isLanding ? (
+          <div className="pointer-events-none fixed inset-0 z-0">
+            <FallingPattern
+              className="h-full [mask-image:radial-gradient(ellipse_at_center,transparent,var(--bg))]"
+            />
+          </div>
+        ) : null}
         {isLanding ? <LandingStickyBackgroundStage /> : null}
         {isLanding && !introComplete ? (
           <LandingIntro onComplete={handleIntroComplete} />

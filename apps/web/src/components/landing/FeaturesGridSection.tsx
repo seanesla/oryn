@@ -5,7 +5,7 @@ import { useReducedMotion } from "motion/react";
 import { AudioLines, FileSearch, ShieldCheck } from "lucide-react";
 
 import { cn } from "@/lib/cn";
-import { SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
+import { ScrollTrigger, SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
 
 registerGsapPlugins();
 
@@ -76,77 +76,52 @@ export function FeaturesGridSection() {
         gsap.set(block, { autoAlpha: 0, x: i % 2 === 0 ? -90 : 90, y: 16 });
       });
 
-      const tl = gsap.timeline({
-        defaults: { ease: "none" },
-        scrollTrigger: {
-          trigger: sectionRef.current,
-          start: "top top",
-          end: () => "+=" + window.innerHeight * 2.6,
-          pin: true,
-          scrub: 0.6,
-          invalidateOnRefresh: true,
-        },
+      const revealTl = gsap.timeline({
+        paused: true,
+        defaults: { ease: "power3.out" },
       });
 
-      /* ── Lead-in: pinned but calm ── */
-      tl.to({}, { duration: 0.08 });
-      tl.addLabel("in");
-
-      /* ── Entrance: word-spring headline + cascade blocks ── */
-      tl.to(label, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power3.out" }, "in")
+      revealTl
+        .to(label, { autoAlpha: 1, y: 0, duration: 0.45 })
         .to(
           words,
           {
             autoAlpha: 1,
             y: 0,
             rotateZ: 0,
-            stagger: { each: 0.025, from: "center" },
-            duration: 0.28,
-            ease: "back.out(2)",
+            stagger: { each: 0.03, from: "center" },
+            duration: 0.9,
+            ease: "back.out(1.6)",
           },
-          "in+=0.04",
+          "-=0.2",
         )
-        .to(body, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, "in+=0.14")
-        .to(blocks[0], { autoAlpha: 1, x: 0, y: 0, duration: 0.22, ease: "power3.out" }, "in+=0.2")
-        .to(blocks[1], { autoAlpha: 1, x: 0, y: 0, duration: 0.22, ease: "power3.out" }, "in+=0.27")
-        .to(blocks[2], { autoAlpha: 1, x: 0, y: 0, duration: 0.22, ease: "power3.out" }, "in+=0.34")
-
-        /* ── Hold: let everything breathe ── */
-        .to({}, { duration: 0.06 })
-
-        /* ── Spotlight cycle: each feature brightens in turn ── */
-        .addLabel("spot1")
-        .to(blocks, { opacity: 0.2, duration: 0.1 }, "spot1")
-        .to(blocks[0], { opacity: 1, x: 12, duration: 0.1 }, "spot1")
-
-        .to({}, { duration: 0.08 })
-
-        .addLabel("spot2", ">")
-        .to(blocks[0], { opacity: 0.2, x: 0, duration: 0.08 }, "spot2")
-        .to(blocks[1], { opacity: 1, x: -12, duration: 0.1 }, "spot2")
-
-        .to({}, { duration: 0.08 })
-
-        .addLabel("spot3", ">")
-        .to(blocks[1], { opacity: 0.2, x: 0, duration: 0.08 }, "spot3")
-        .to(blocks[2], { opacity: 1, x: 12, duration: 0.1 }, "spot3")
-
-        .to({}, { duration: 0.08 })
-
-        /* ── Exit: drift apart ── */
-        .addLabel("exit", ">")
-        .to(blocks[2], { opacity: 0.2, x: 0, duration: 0.06 }, "exit")
-        .to(blocks[0], { x: -120, autoAlpha: 0, duration: 0.22, ease: "power3.in" }, "exit")
-        .to(blocks[1], { x: 120, autoAlpha: 0, duration: 0.22, ease: "power3.in" }, "exit")
-        .to(blocks[2], { x: -120, autoAlpha: 0, duration: 0.22, ease: "power3.in" }, "exit")
+        .to(body, { autoAlpha: 1, y: 0, duration: 0.55 }, "-=0.55")
         .to(
-          [label, headline, body],
-          { autoAlpha: 0, y: -40, duration: 0.18, ease: "power3.in" },
-          "exit+=0.04",
+          blocks,
+          {
+            autoAlpha: 1,
+            x: 0,
+            y: 0,
+            stagger: 0.12,
+            duration: 0.7,
+            ease: "power3.out",
+          },
+          "-=0.25",
         );
+
+      const trigger = ScrollTrigger.create({
+        trigger: sectionRef.current,
+        start: "top top",
+        once: true,
+        onEnter: () => {
+          revealTl.play(0);
+        },
+      });
 
       return () => {
         split.revert();
+        trigger.kill();
+        revealTl.kill();
       };
     },
     { scope: sectionRef },

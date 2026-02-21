@@ -2,15 +2,14 @@
 
 import { useMemo, useRef, useState } from "react";
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import {
   Bookmark,
   Filter,
-  Info,
+  MoreHorizontal,
   Search,
-  ShieldQuestion,
-  Workflow,
 } from "lucide-react";
 
 import type { DisagreementType, EvidenceCard, SessionArtifacts } from "@/lib/contracts";
@@ -53,6 +52,116 @@ function explainDisputeType(t: DisagreementType) {
   if (t === "Definition") return "The disagreement is about what terms mean or what metric is being used (category boundaries).";
   if (t === "Values") return "The disagreement is about tradeoffs and priorities (even with shared facts).";
   return "The disagreement is about future outcomes (forecasts, scenarios, uncertainty).";
+}
+
+const menuItemClass = cn(
+  "flex cursor-default select-none items-center gap-2 rounded-[0.65rem] px-2 py-2 text-sm",
+  "text-[color:var(--fg)] outline-none",
+  "focus:bg-[color:color-mix(in_oklab,var(--accent)_10%,var(--card))]"
+);
+
+function EvidenceCardActions({
+  card,
+  session,
+  actions,
+}: {
+  card: EvidenceCard;
+  session: SessionArtifacts;
+  actions: RuntimeActions;
+}) {
+  const [explainOpen, setExplainOpen] = useState(false);
+  const [traceOpen, setTraceOpen] = useState(false);
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+
+  return (
+    <>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <Button variant="ghost" size="sm" aria-label="Card actions">
+            <MoreHorizontal className="h-4 w-4 text-[color:var(--muted-fg)]" />
+          </Button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            sideOffset={6}
+            align="end"
+            className={cn(
+              "z-50 w-52 rounded-[0.9rem] border border-[color:var(--border)]",
+              "bg-[color:color-mix(in_oklab,var(--card)_96%,transparent)] p-1.5 shadow-[var(--shadow-soft)] backdrop-blur-xl"
+            )}
+          >
+            <DropdownMenu.Item className={menuItemClass} onSelect={() => setExplainOpen(true)}>
+              Explain dispute type
+            </DropdownMenu.Item>
+            <DropdownMenu.Item className={menuItemClass} onSelect={() => setTraceOpen(true)}>
+              Show retrieval trace
+            </DropdownMenu.Item>
+            <DropdownMenu.Item className={menuItemClass} onSelect={() => setFollowUpOpen(true)}>
+              Ask follow-up
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+
+      {/* Explain dispute type dialog */}
+      <Dialog open={explainOpen} onOpenChange={setExplainOpen}>
+        <DialogContent>
+          <DialogTitle className="text-sm font-semibold tracking-[-0.02em]">{card.disagreementType} dispute</DialogTitle>
+          <DialogDescription className="mt-2 text-sm text-[color:var(--muted-fg)]">
+            {explainDisputeType(card.disagreementType)}
+          </DialogDescription>
+          <Divider className="my-3" />
+          <div className="text-xs text-[color:var(--muted-fg)]">
+            This label is a UI guardrail: it forces the system to separate definitional arguments from factual checks.
+          </div>
+          <div className="mt-4 flex justify-end">
+            <DialogClose asChild>
+              <Button>Close</Button>
+            </DialogClose>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Retrieval trace dialog */}
+      <Dialog open={traceOpen} onOpenChange={setTraceOpen}>
+        <DialogContent>
+          <DialogTitle className="text-sm font-semibold tracking-[-0.02em]">Retrieval trace for this card</DialogTitle>
+          <DialogDescription className="mt-1 text-xs text-[color:var(--muted-fg)]">
+            Which tool outputs fed it.
+          </DialogDescription>
+          <Divider className="my-3" />
+          <div className="space-y-2">
+            {(card.traceRef?.toolCallIds ?? []).map((id, index) => {
+              const call = session.trace.toolCalls.find((t) => t.id === id);
+              if (!call) return null;
+              return (
+                <div key={`${id}-${index}`} className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-3">
+                  <div className="text-xs font-medium text-[color:var(--fg)]">{call.queryText}</div>
+                  <div className="mt-1 text-[11px] text-[color:var(--muted-fg)]">
+                    results: {call.resultsCount} · selected: {call.selectedSourceDomains.join(", ")}
+                  </div>
+                  <div className="mt-1 text-[11px] text-[color:var(--muted-fg)]">why: {call.selectionWhy}</div>
+                </div>
+              );
+            })}
+            {(card.traceRef?.toolCallIds ?? []).length === 0 ? (
+              <div className="text-sm text-[color:var(--muted-fg)]">No trace references (mock).</div>
+            ) : null}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <DialogClose asChild>
+              <Button>Close</Button>
+            </DialogClose>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Follow-up dialog */}
+      <Dialog open={followUpOpen} onOpenChange={setFollowUpOpen}>
+        <FollowUpDialog session={session} actions={actions} onClose={() => setFollowUpOpen(false)} />
+      </Dialog>
+    </>
+  );
 }
 
 export function EvidenceCardsPanel({
@@ -317,14 +426,17 @@ export function EvidenceCardsPanel({
                     {c.pinned ? <Badge tone="warn">Pinned</Badge> : null}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  aria-label={c.pinned ? "Unpin card" : "Pin card"}
-                  title={c.pinned ? "Unpin card" : "Pin card"}
-                  onClick={() => actions.togglePin(c.id)}
-                >
-                  <Bookmark className={cn("h-4 w-4", c.pinned ? "text-[color:var(--accent)]" : "text-[color:var(--muted-fg)]")} />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    aria-label={c.pinned ? "Unpin card" : "Pin card"}
+                    title={c.pinned ? "Unpin card" : "Pin card"}
+                    onClick={() => actions.togglePin(c.id)}
+                  >
+                    <Bookmark className={cn("h-4 w-4", c.pinned ? "text-[color:var(--accent)]" : "text-[color:var(--muted-fg)]")} />
+                  </Button>
+                  <EvidenceCardActions card={c} session={session} actions={actions} />
+                </div>
               </div>
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -332,9 +444,9 @@ export function EvidenceCardsPanel({
                   <div className="text-[11px] font-medium text-[color:var(--muted-fg)]">Evidence</div>
                   {c.evidence.slice(0, 1).map((e) => (
                     <div key={e.url} className="mt-2 text-xs leading-relaxed text-[color:var(--fg)]">
-                      <span className="text-[color:var(--muted-fg)]">“</span>
+                      <span className="text-[color:var(--muted-fg)]">"</span>
                       {e.quote}
-                      <span className="text-[color:var(--muted-fg)]">”</span>
+                      <span className="text-[color:var(--muted-fg)]">"</span>
                       <div className="mt-1">
                         <a
                           className="text-[color:var(--muted-fg)] underline decoration-[color:color-mix(in_oklab,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[color:var(--fg)]"
@@ -352,9 +464,9 @@ export function EvidenceCardsPanel({
                   <div className="text-[11px] font-medium text-[color:var(--muted-fg)]">Counter-evidence / counter-frame</div>
                   {c.counterEvidence.slice(0, 1).map((e) => (
                     <div key={e.url} className="mt-2 text-xs leading-relaxed text-[color:var(--fg)]">
-                      <span className="text-[color:var(--muted-fg)]">“</span>
+                      <span className="text-[color:var(--muted-fg)]">"</span>
                       {e.quote}
-                      <span className="text-[color:var(--muted-fg)]">”</span>
+                      <span className="text-[color:var(--muted-fg)]">"</span>
                       <div className="mt-1">
                         <a
                           className="text-[color:var(--muted-fg)] underline decoration-[color:color-mix(in_oklab,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[color:var(--fg)]"
@@ -368,81 +480,6 @@ export function EvidenceCardsPanel({
                     </div>
                   ))}
                 </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Info className="h-4 w-4" />
-                      Explain dispute type
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogTitle className="text-sm font-semibold tracking-[-0.02em]">{c.disagreementType} dispute</DialogTitle>
-                    <DialogDescription className="mt-2 text-sm text-[color:var(--muted-fg)]">
-                      {explainDisputeType(c.disagreementType)}
-                    </DialogDescription>
-                    <Divider className="my-3" />
-                    <div className="text-xs text-[color:var(--muted-fg)]">
-                      This label is a UI guardrail: it forces the system to separate definitional arguments from factual checks.
-                    </div>
-                    <div className="mt-4 flex justify-end">
-                      <DialogClose asChild>
-                        <Button>Close</Button>
-                      </DialogClose>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Workflow className="h-4 w-4" />
-                      Show retrieval trace
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogTitle className="text-sm font-semibold tracking-[-0.02em]">Retrieval trace for this card</DialogTitle>
-                    <DialogDescription className="mt-1 text-xs text-[color:var(--muted-fg)]">
-                      Which tool outputs fed it.
-                    </DialogDescription>
-                    <Divider className="my-3" />
-                    <div className="space-y-2">
-                      {(c.traceRef?.toolCallIds ?? []).map((id, index) => {
-                        const call = session.trace.toolCalls.find((t) => t.id === id);
-                        if (!call) return null;
-                        return (
-                          <div key={`${id}-${index}`} className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-3">
-                            <div className="text-xs font-medium text-[color:var(--fg)]">{call.queryText}</div>
-                            <div className="mt-1 text-[11px] text-[color:var(--muted-fg)]">
-                              results: {call.resultsCount} · selected: {call.selectedSourceDomains.join(", ")}
-                            </div>
-                            <div className="mt-1 text-[11px] text-[color:var(--muted-fg)]">why: {call.selectionWhy}</div>
-                          </div>
-                        );
-                      })}
-                      {(c.traceRef?.toolCallIds ?? []).length === 0 ? (
-                        <div className="text-sm text-[color:var(--muted-fg)]">No trace references (mock).</div>
-                      ) : null}
-                    </div>
-                    <div className="mt-4 flex justify-end">
-                      <DialogClose asChild>
-                        <Button>Close</Button>
-                      </DialogClose>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <ShieldQuestion className="h-4 w-4" />
-                      Ask follow-up
-                    </Button>
-                  </DialogTrigger>
-                  <FollowUpDialog session={session} actions={actions} />
-                </Dialog>
               </div>
             </div>
             </motion.article>
@@ -483,15 +520,16 @@ export function EvidenceCardsPanel({
 function FollowUpDialog({
   session,
   actions,
+  onClose,
 }: {
   session: SessionArtifacts;
   actions: RuntimeActions;
+  onClose: () => void;
 }) {
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <DialogContent>
@@ -521,9 +559,6 @@ function FollowUpDialog({
           {err}
         </div>
       ) : null}
-      <DialogClose asChild>
-        <button ref={closeButtonRef} type="button" className="hidden" tabIndex={-1} aria-hidden="true" />
-      </DialogClose>
       <div className="mt-4 flex items-center justify-between">
         <div className="text-[11px] text-[color:var(--muted-fg)]">
           Evidence required: {session.evidenceCards.length > 0 ? "yes" : "no (blocked)"}
@@ -558,14 +593,14 @@ function FollowUpDialog({
                 });
                 await actions.appendTranscript({
                   speaker: "agent",
-                  text: "Got it. I’ll treat that as a narrowing question and rebuild the choice set with the missing frame in mind. (mock)",
+                  text: "Got it. I'll treat that as a narrowing question and rebuild the choice set with the missing frame in mind. (mock)",
                   timestampMs: now + 220,
                   isPartial: false,
                   turnId: `agent_followup_${now}`,
                 });
                 await actions.regenerateChoiceSet();
                 setText("");
-                closeButtonRef.current?.click();
+                onClose();
               } catch {
                 setErr("Could not submit follow-up. Try again.");
               } finally {

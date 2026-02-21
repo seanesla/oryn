@@ -24,7 +24,6 @@ const SHIMMER_COLORS = ["#818cf8", "#67e8f9", "#a78bfa", "#818cf8"];
 export function HeroSection() {
   const router = useRouter();
   const sectionRef = useRef<HTMLElement>(null);
-  const exitTlRef = useRef<gsap.core.Timeline | null>(null);
   const shouldReduceMotion = useReducedMotion();
   const reducedMotion = Boolean(shouldReduceMotion);
 
@@ -130,64 +129,13 @@ export function HeroSection() {
         });
       }
 
-      /* ── Exit: scroll-driven parallax dissolve ──
-         Deferred until after the intro completes so the scrub .to() calls
-         capture the fully-visible state as their "from" values.  This
-         prevents the exit scrub from fighting the intro animations and
-         fixes the bug where hero elements vanish on the first pixel of scroll. */
-      const sectionEl = sectionRef.current;
+      // Release the compositing layer created by blur(0px).
       intro.eventCallback("onComplete", () => {
-        if (!sectionEl) return;
-        /* Clear the residual filter: blur(0px) left by the intro animation
-           so the element is released from its compositing layer. */
         gsap.set(subtitle, { clearProps: "filter" });
-
-        const exitTl = gsap.timeline({
-          scrollTrigger: {
-            trigger: sectionEl,
-            start: "top top",
-            end: () => "+=" + window.innerHeight * 3,
-            pin: true,
-            scrub: 0.6,
-            anticipatePin: 1,
-            invalidateOnRefresh: true,
-            onLeave: () => {
-              // Instantly hide the hero when the pin releases so its
-              // partially-faded content (scrub lag) can't overlap with
-              // the features section scrolling in from below.
-              sectionEl.style.visibility = "hidden";
-            },
-            onEnterBack: () => {
-              sectionEl.style.visibility = "";
-            },
-          },
-        });
-
-        exitTl
-          /* ── Hold-in: hero stays visible, only scroll cue fades ── */
-          .to(cue, { autoAlpha: 0, duration: 0.15, ease: "none" }, 0)
-          .to({}, { duration: 0.2 })
-
-          /* ── Exit: parallax drift / dissolve ── */
-          .addLabel("exit")
-          .to(brand, { y: -220, autoAlpha: 0, duration: 0.5, ease: "none" }, "exit")
-          .to(headline, { y: -200, autoAlpha: 0, scale: 0.96, duration: 0.5, ease: "none" }, "exit")
-          .to(subtitle, { y: -140, autoAlpha: 0, scale: 0.98, duration: 0.5, ease: "none" }, "exit")
-          .to(ctas, { y: -100, autoAlpha: 0, duration: 0.5, ease: "none" }, "exit")
-
-          /* ── Hold-out: blank pause before next section pins ── */
-          .to({}, { duration: 0.2 });
-
-        exitTlRef.current = exitTl;
       });
 
       return () => {
         split.revert();
-        if (exitTlRef.current) {
-          exitTlRef.current.scrollTrigger?.kill();
-          exitTlRef.current.kill();
-          exitTlRef.current = null;
-        }
       };
     },
     { scope: sectionRef },
@@ -236,10 +184,10 @@ export function HeroSection() {
 
         {/* CTAs — centered */}
         <div data-hero-ctas className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <Button size="lg" onClick={() => router.push("/app")}>
+          <Button size="lg" onClick={() => router.push("/app/co-reading")}>
             Open workspace <ArrowRight className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="lg" onClick={() => router.push("/history")}>
+          <Button variant="outline" size="lg" onClick={() => router.push("/app/history")}>
             View history
           </Button>
         </div>

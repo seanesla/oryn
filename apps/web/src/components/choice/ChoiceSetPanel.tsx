@@ -13,7 +13,6 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Divider } from "@/components/ui/Divider";
-import { Slider } from "@/components/ui/Slider";
 
 export function ChoiceSetPanel({
   session,
@@ -24,10 +23,7 @@ export function ChoiceSetPanel({
 }) {
   const shouldReduceMotion = useReducedMotion();
   const items = useMemo(() => session.choiceSet.slice(0, 3), [session.choiceSet]);
-  const [dial, setDial] = useState(55);
   const [regenerating, setRegenerating] = useState(false);
-
-  const dialLabel = dial < 40 ? "More credibility" : dial > 60 ? "More diversity" : "Balanced";
 
   async function handleRegenerate() {
     if (items.length !== 3 || regenerating) return;
@@ -118,14 +114,7 @@ export function ChoiceSetPanel({
           </Button>
         </div>
 
-        <div className="grid gap-2">
-          <div className="flex items-center justify-between text-[11px] text-[color:var(--muted-fg)]">
-            <span>More credibility</span>
-            <span className="text-[color:var(--fg)]">{dialLabel}</span>
-            <span>More diversity</span>
-          </div>
-          <Slider value={[dial]} onValueChange={(v) => setDial(v[0] ?? 55)} min={0} max={100} step={1} />
-        </div>
+
       </div>
     </Card>
   );

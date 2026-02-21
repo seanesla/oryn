@@ -11,9 +11,9 @@ import { cn } from "@/lib/cn";
 import { listSessions, refreshSessions } from "@/lib/sessions";
 
 const items = [
-  { id: "co-reading", href: "/app", label: "Co-Reading", icon: Newspaper },
-  { id: "history", href: "/history", label: "History", icon: History },
-  { id: "settings", href: "/settings", label: "Settings", icon: SlidersHorizontal },
+  { id: "co-reading", href: "/app/co-reading", label: "Co-Reading", icon: Newspaper },
+  { id: "history", href: "/app/history", label: "History", icon: History },
+  { id: "settings", href: "/app/settings", label: "Settings", icon: SlidersHorizontal },
 ] as const;
 
 export function LeftNav() {
@@ -42,7 +42,7 @@ export function LeftNav() {
 
   const last = cached[0];
   const hasLiveSession = Boolean(last?.sessionId);
-  const liveHref = hasLiveSession ? `/session/${last?.sessionId}` : "/app";
+  const liveHref = hasLiveSession ? `/app/session/${last?.sessionId}` : "/app/co-reading";
 
   const merged = [
     items[0]!,
@@ -58,12 +58,12 @@ export function LeftNav() {
         {merged.map((item) => {
           const active =
             item.id === "co-reading"
-              ? pathname === "/app"
+              ? pathname === "/app/co-reading"
               : item.id === "live-talk"
-                ? pathname.startsWith("/session/")
+                ? pathname.startsWith("/app/session/")
                 : item.id === "history"
-                  ? pathname === "/history"
-                  : pathname.startsWith("/settings");
+                  ? pathname === "/app/history"
+                  : pathname.startsWith("/app/settings");
           const Icon = item.icon;
           return (
             <Link
@@ -94,10 +94,6 @@ export function LeftNav() {
             </Link>
           );
         })}
-      </div>
-
-      <div className="mt-6 rounded-[0.6rem] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-3)_90%,transparent)] p-3 text-xs text-[color:var(--muted-fg)]">
-        Sessions stream from the backend (SSE) and Live voice uses a backend WebSocket proxy.
       </div>
     </aside>
   );

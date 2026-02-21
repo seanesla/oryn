@@ -5,22 +5,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
-import { ArrowDownToLine, FileText, Plus, Wifi, WifiOff } from "lucide-react";
+import { ArrowDownToLine, FileText, Plus } from "lucide-react";
 
 import { AccentPicker } from "@/components/shell/AccentPicker";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
-import type { SessionArtifacts, WsState } from "@/lib/contracts";
+import type { SessionArtifacts } from "@/lib/contracts";
 import { getSession } from "@/lib/sessions";
-
-function wsTone(ws: WsState) {
-  if (ws === "connected") return "good";
-  if (ws === "reconnecting") return "warn";
-  return "bad";
-}
 
 function download(filename: string, mime: string, content: string) {
   const blob = new Blob([content], { type: mime });
@@ -37,13 +29,12 @@ export function TopBar() {
   const router = useRouter();
 
   const sessionId = useMemo(() => {
-    const match = pathname.match(/^\/session\/([^/]+)/);
+    const match = pathname.match(/^\/app\/session\/([^/]+)/);
     return match?.[1] ?? null;
   }, [pathname]);
 
   const [, forceRerender] = useState(0);
   const [isHydrated, setIsHydrated] = useState(false);
-  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     let cancelled = false;
@@ -64,10 +55,6 @@ export function TopBar() {
 
   const active: SessionArtifacts | null = isHydrated && sessionId ? getSession(sessionId) : null;
 
-  const ws = active?.wsState ?? "connected";
-  const current = active?.latencyMs.current ?? 0;
-  const p50 = active?.latencyMs.p50 ?? 0;
-
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-[color:color-mix(in_oklab,var(--border)_88%,transparent)] bg-[color:color-mix(in_oklab,var(--bg)_82%,transparent)] backdrop-blur-xl">
       <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-6">
@@ -77,46 +64,6 @@ export function TopBar() {
         </Link>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div
-              key={ws}
-              initial={shouldReduceMotion ? false : { opacity: 0.7, y: -4, scale: 0.98 }}
-              animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
-              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
-              transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <Badge tone={wsTone(ws)}>
-                {ws === "connected" ? (
-                  <Wifi className="h-3.5 w-3.5" />
-                ) : ws === "offline" ? (
-                  <WifiOff className="h-3.5 w-3.5" />
-                ) : (
-                  <Wifi className="h-3.5 w-3.5" />
-                )}
-                {ws === "connected" ? "Connected" : ws === "reconnecting" ? "Reconnecting" : "Offline"}
-              </Badge>
-            </motion.div>
-          </AnimatePresence>
-
-          <div className="hidden md:flex items-center gap-2 rounded-[0.58rem] border border-[color:var(--border-soft)] bg-[color:color-mix(in_oklab,var(--surface-3)_92%,transparent)] px-3 py-1.5 text-[11px] text-[color:var(--muted-fg)]">
-            <span>Latency</span>
-            <span className="rounded-[0.42rem] border border-[color:color-mix(in_oklab,var(--accent)_35%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_10%,var(--surface-2))] px-1.5 py-0.5 text-[10px] text-[color:var(--fg)]">
-              p50 {p50}ms
-            </span>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={current}
-                className="text-[color:var(--fg)]"
-                initial={shouldReduceMotion ? false : { opacity: 0.7, y: 4 }}
-                animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              >
-                {current}ms
-              </motion.span>
-            </AnimatePresence>
-          </div>
-
           <AccentPicker />
 
           <Button
@@ -124,7 +71,7 @@ export function TopBar() {
             aria-label="New session"
             title="New session"
             onClick={() => {
-              router.push("/app");
+              router.push("/app/co-reading");
             }}
             size="sm"
           >

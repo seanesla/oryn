@@ -62,7 +62,7 @@ export function HistoryClient() {
           {sessions.map((s) => (
             <Link
               key={s.sessionId}
-              href={`/session/${s.sessionId}`}
+              href={`/app/session/${s.sessionId}`}
               className="block rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_86%,transparent)] p-3 transition hover:border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))] hover:shadow-[var(--shadow-glow)]"
             >
               <div className="flex items-start justify-between gap-3">

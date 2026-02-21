@@ -7,9 +7,9 @@ import {
   LayoutGroup,
   useReducedMotion,
 } from "motion/react";
+import { useLenis } from "lenis/react";
 
 import { cn } from "@/lib/cn";
-import { ScrollTrigger } from "@/lib/gsap";
 
 /* ─── Config ───────────────────────────────────────────────── */
 
@@ -34,17 +34,10 @@ const EASE = [0.22, 1, 0.36, 1] as [number, number, number, number];
 /* ─── Hook: track which section is visible ─────────────────── */
 
 /**
- * Determines the active section from ScrollTrigger pin ranges rather
- * than `elementsFromPoint` hit-testing. This is immune to the layout
- * glitches that occur during GSAP pin/unpin transitions (which caused
- * the dot nav to briefly flicker to wrong sections during gaps).
+ * Determines the active section based on section top offsets.
  *
- * Rules:
- *  1. Scroll inside a pinned range → that section is active.
- *  2. Scroll before the first pin   → first section (hero).
- *  3. Scroll after the last pin     → last section.
- *  4. Scroll in a gap between pins  → the section we just left
- *     (keeps the previous section active until the next one pins).
+ * We use a "probe" line partway down the viewport so the active dot
+ * doesn't flicker when you're near a boundary.
  */
 function useActiveSection(): number {
   const [active, setActive] = useState(0);
@@ -55,53 +48,19 @@ function useActiveSection(): number {
 
     const compute = () => {
       raf = 0;
-      const scroll = window.scrollY;
+      const probe = window.scrollY + window.innerHeight * 0.35;
 
-      // Build a sorted list of { sectionIndex, start, end } from all
-      // pinned ScrollTriggers that belong to a landing scene.
-      const ranges: Array<{ idx: number; start: number; end: number }> = [];
-      for (const st of ScrollTrigger.getAll()) {
-        if (!st.pin || !Number.isFinite(st.start) || !Number.isFinite(st.end))
-          continue;
-        const scene = (st.trigger as HTMLElement)?.getAttribute?.(
-          "data-landing-scene",
+      let next = 0;
+      for (let i = 0; i < SECTIONS.length; i++) {
+        const scene = SECTIONS[i].scene;
+        const el = document.querySelector<HTMLElement>(
+          `[data-landing-scene="${scene}"]`,
         );
-        if (!scene) continue;
-        const idx = SECTIONS.findIndex((s) => s.scene === scene);
-        if (idx === -1) continue;
-        ranges.push({ idx, start: st.start, end: st.end });
+        if (!el) continue;
+
+        const top = el.getBoundingClientRect().top + window.scrollY;
+        if (top <= probe) next = i;
       }
-
-      ranges.sort((a, b) => a.start - b.start);
-
-      // No triggers registered yet (intro still playing) — stay on hero.
-      if (!ranges.length) return;
-
-      let next = activeRef.current;
-
-      // 1. Inside a pinned range → that section.
-      for (const r of ranges) {
-        if (scroll >= r.start && scroll <= r.end) {
-          next = r.idx;
-          break;
-        }
-      }
-
-      // 2. Before the first section → first section.
-      if (next === activeRef.current && scroll < ranges[0].start) {
-        next = ranges[0].idx;
-      }
-
-      // 3. After the last section → last section.
-      if (
-        next === activeRef.current &&
-        scroll > ranges[ranges.length - 1].end
-      ) {
-        next = ranges[ranges.length - 1].idx;
-      }
-
-      // 4. In a gap → keep the section we just left.
-      //    (next is still activeRef.current — no change needed)
 
       if (next !== activeRef.current) {
         activeRef.current = next;
@@ -144,12 +103,22 @@ function Dot({
   isActive: boolean;
   reducedMotion: boolean;
 }) {
+  const lenis = useLenis();
+
   const scrollTo = useCallback(() => {
     const el = document.querySelector<HTMLElement>(
       `[data-landing-scene="${scene}"]`
     );
-    if (el) el.scrollIntoView({ behavior: "smooth" });
-  }, [scene]);
+    if (!el) return;
+
+    // Prefer Lenis scrollTo so the snap system stays in sync.
+    // Fall back to native scrollIntoView if Lenis isn't ready yet.
+    if (lenis) {
+      lenis.scrollTo(el);
+    } else {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [scene, lenis]);
 
   return (
     <motion.button

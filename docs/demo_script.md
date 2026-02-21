@@ -11,7 +11,7 @@ npm install
 GEMINI_API_KEY=... npm run dev
 ```
 
-2) Open `http://localhost:3000/app`
+2) Open `http://localhost:3000/app/co-reading`
 3) Pick a real article URL (any current event with broad coverage)
 
 ## Live demo flow

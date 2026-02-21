@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { useReducedMotion } from "motion/react";
 
-import { SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
+import { ScrollTrigger, SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
 
 registerGsapPlugins();
 
@@ -58,6 +58,7 @@ export function HowItWorksSection() {
 
       if (!label || !headline || !cursor || !body || !leftCol || !rightCol) return;
       if (steps.length === 0 || !drawLine) return;
+      if (stepNums.length < 3 || stepTexts.length < 3) return;
 
       /* SplitText — char-by-char typewriter on headline */
       const split = new SplitText(headline, { type: "chars" });
@@ -81,104 +82,49 @@ export function HowItWorksSection() {
       const lineLength = drawLine.getTotalLength();
       gsap.set(drawLine, { strokeDasharray: lineLength, strokeDashoffset: lineLength });
 
-      const tl = gsap.timeline({
-        defaults: { ease: "none" },
-        scrollTrigger: {
-          trigger: sectionRef.current,
-          start: "top top",
-          end: () => "+=" + window.innerHeight * 2.2,
-          pin: true,
-          scrub: 0.6,
-          invalidateOnRefresh: true,
-        },
+      const revealTl = gsap.timeline({
+        paused: true,
+        defaults: { ease: "power3.out" },
       });
 
-      /* ── Lead-in: pinned but calm ── */
-      tl.to({}, { duration: 0.08 });
-      tl.addLabel("in");
-
-      /* ── Entrance: left column slides in, headline types ── */
-      tl.to(leftCol, { x: 0, autoAlpha: 1, duration: 0.2, ease: "power3.out" }, "in")
-        .to(label, { autoAlpha: 1, y: 0, duration: 0.14, ease: "power3.out" }, "in+=0.06")
+      revealTl
+        .to(leftCol, { x: 0, autoAlpha: 1, duration: 0.6 })
+        .to(label, { autoAlpha: 1, y: 0, duration: 0.45 }, "-=0.35")
+        .to(cursor, { autoAlpha: 1, duration: 0.1 }, "-=0.35")
         .to(
           split.chars,
-          { autoAlpha: 1, stagger: 0.015, duration: 0.35, ease: "none" },
-          "in+=0.1",
+          { autoAlpha: 1, stagger: 0.02, duration: 0.6, ease: "none" },
+          "-=0.15",
         )
-        .to(cursor, { autoAlpha: 1, duration: 0.06 }, "in+=0.12")
-        .to(body, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, "in+=0.22")
+        .to(body, { autoAlpha: 1, y: 0, duration: 0.55 }, "-=0.35")
 
-        /* ── Step 1: number circle-reveals, text slides in ── */
-        .addLabel("step1", "in+=0.32")
+        // Step 1
         .to(
           stepNums[0],
-          { clipPath: "circle(100% at 50% 50%)", duration: 0.18, ease: "power3.out" },
-          "step1",
+          { clipPath: "circle(100% at 50% 50%)", duration: 0.45 },
+          ">-=0.1",
         )
-        .to(
-          stepTexts[0],
-          { autoAlpha: 1, x: 0, duration: 0.2, ease: "power3.out" },
-          "step1+=0.06",
-        )
-        /* Draw SVG line: first third */
-        .to(
-          drawLine,
-          { strokeDashoffset: lineLength * 0.66, duration: 0.15, ease: "none" },
-          "step1+=0.12",
-        )
+        .to(stepTexts[0], { autoAlpha: 1, x: 0, duration: 0.55 }, "-=0.25")
+        .to(drawLine, { strokeDashoffset: lineLength * 0.66, duration: 0.35, ease: "none" }, "-=0.35")
 
-        /* ── Hold step 1 ── */
-        .to({}, { duration: 0.06 })
+        // Step 2
+        .to(stepNums[1], { clipPath: "circle(100% at 50% 50%)", duration: 0.45 }, ">+=0.15")
+        .to(stepTexts[1], { autoAlpha: 1, x: 0, duration: 0.55 }, "-=0.25")
+        .to(drawLine, { strokeDashoffset: lineLength * 0.33, duration: 0.35, ease: "none" }, "-=0.35")
 
-        /* ── Step 2: previous dims, new step appears ── */
-        .addLabel("step2", ">")
-        .to(steps[0], { opacity: 0.35, duration: 0.1 }, "step2")
-        .to(
-          stepNums[1],
-          { clipPath: "circle(100% at 50% 50%)", duration: 0.18, ease: "power3.out" },
-          "step2",
-        )
-        .to(
-          stepTexts[1],
-          { autoAlpha: 1, x: 0, duration: 0.2, ease: "power3.out" },
-          "step2+=0.06",
-        )
-        /* Draw SVG line: second third */
-        .to(
-          drawLine,
-          { strokeDashoffset: lineLength * 0.33, duration: 0.15, ease: "none" },
-          "step2+=0.12",
-        )
+        // Step 3
+        .to(stepNums[2], { clipPath: "circle(100% at 50% 50%)", duration: 0.45 }, ">+=0.15")
+        .to(stepTexts[2], { autoAlpha: 1, x: 0, duration: 0.55 }, "-=0.25")
+        .to(drawLine, { strokeDashoffset: 0, duration: 0.35, ease: "none" }, "-=0.35");
 
-        .to({}, { duration: 0.06 })
-
-        /* ── Step 3 ── */
-        .addLabel("step3", ">")
-        .to(steps[1], { opacity: 0.35, duration: 0.1 }, "step3")
-        .to(
-          stepNums[2],
-          { clipPath: "circle(100% at 50% 50%)", duration: 0.18, ease: "power3.out" },
-          "step3",
-        )
-        .to(
-          stepTexts[2],
-          { autoAlpha: 1, x: 0, duration: 0.2, ease: "power3.out" },
-          "step3+=0.06",
-        )
-        /* Draw SVG line: final third */
-        .to(
-          drawLine,
-          { strokeDashoffset: 0, duration: 0.15, ease: "none" },
-          "step3+=0.12",
-        )
-
-        .to({}, { duration: 0.08 })
-
-        /* ── Exit: reverse-split drift ── */
-        .addLabel("exit", ">")
-        .to(steps[2], { opacity: 0.35, duration: 0.06 }, "exit")
-        .to(leftCol, { x: -90, autoAlpha: 0, duration: 0.22, ease: "power3.in" }, "exit")
-        .to(rightCol, { x: 90, autoAlpha: 0, duration: 0.22, ease: "power3.in" }, "exit");
+      const trigger = ScrollTrigger.create({
+        trigger: sectionRef.current,
+        start: "top top",
+        once: true,
+        onEnter: () => {
+          revealTl.play(0);
+        },
+      });
 
       /* Cursor blink — independent infinite loop */
       gsap.to(cursor, {
@@ -191,6 +137,8 @@ export function HowItWorksSection() {
 
       return () => {
         split.revert();
+        trigger.kill();
+        revealTl.kill();
       };
     },
     { scope: sectionRef },

@@ -7,7 +7,7 @@ import { useReducedMotion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
-import { SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
+import { ScrollTrigger, SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
 
 registerGsapPlugins();
 
@@ -47,102 +47,56 @@ export function ClosingSection() {
       gsap.set(body, { autoAlpha: 0, y: 20 });
       gsap.set(ctas, { autoAlpha: 0, y: 20 });
 
-      // Pinned scrub — same pattern as every other section.
-      //
-      // Edge-case for the last section: because maxScroll === pinEnd,
-      // GSAP can release the pin at the exact boundary (subpixel rounding,
-      // Lenis lerp overshoot, End key). When that happens the section
-      // repositions inside the pin-spacer and .pin-spacer overflow:hidden
-      // clips it → "content vanishes then reappears" (the duplicate).
-      //
-      // Fix: onLeave immediately re-fixes the section to the viewport so
-      // the release is invisible. onEnterBack clears the override so GSAP
-      // can manage the pin normally when scrolling back up.
-      const tl = gsap.timeline({
-        defaults: { ease: "none" },
-        scrollTrigger: {
-          trigger: sectionEl,
-          start: "top top",
-          end: () => "+=" + window.innerHeight * 0.6,
-          pin: true,
-          scrub: 0.6,
-          invalidateOnRefresh: true,
-          onLeave: () => {
-            // Pin just released — force section back to fixed so the
-            // reposition inside pin-spacer is never visible.
-            // IMPORTANT: also clear transform because GSAP applies a
-            // translate() to position the element at its natural scroll
-            // offset after pin release. Without clearing it, the fixed
-            // section is shifted down and only the logo peeks into view.
-            gsap.set(sectionEl, {
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100%",
-              zIndex: 10,
-              transform: "none",
-            });
-          },
-          onEnterBack: () => {
-            // Scrolling back into pin range — clear overrides so GSAP
-            // can manage the pin normally.
-            gsap.set(sectionEl, {
-              clearProps: "position,top,left,width,zIndex,transform",
-            });
-          },
-        },
+      const revealTl = gsap.timeline({
+        paused: true,
+        defaults: { ease: "power3.out" },
       });
 
-      /* ── Lead-in: pinned but calm ── */
-      tl.to({}, { duration: 0.08 });
-      tl.addLabel("in");
-
-      /* ── Entrance ── */
-      tl.to(
-          logo,
-          {
-            autoAlpha: 1,
-            scale: 1,
-            y: 0,
-            duration: 0.25,
-            ease: "back.out(1.4)",
-          },
-          "in",
-        )
+      revealTl
+        .to(logo, {
+          autoAlpha: 1,
+          scale: 1,
+          y: 0,
+          duration: 0.6,
+          ease: "back.out(1.35)",
+        })
         .to(
           headline,
           {
             scale: 1,
             autoAlpha: 1,
             filter: "blur(0px)",
-            duration: 0.35,
-            ease: "power3.out",
+            duration: 0.8,
           },
-          "in+=0.06",
+          "-=0.35",
         )
         .to(
           chars,
           {
             autoAlpha: 1,
             scale: 1,
-            stagger: { each: 0.015, from: "random" },
-            duration: 0.28,
-            ease: "back.out(1.7)",
+            stagger: { each: 0.02, from: "random" },
+            duration: 0.7,
+            ease: "back.out(1.6)",
           },
-          "in+=0.1",
+          "-=0.55",
         )
-        .to(body, { autoAlpha: 1, y: 0, duration: 0.2, ease: "power3.out" }, "in+=0.4")
-        .to(ctas, { autoAlpha: 1, y: 0, duration: 0.18, ease: "power3.out" }, "in+=0.52")
+        .to(body, { autoAlpha: 1, y: 0, duration: 0.6 }, "-=0.45")
+        .to(ctas, { autoAlpha: 1, y: 0, duration: 0.55 }, "-=0.4");
 
-        /* ── Hold: content stays visible ── */
-        .to({}, { duration: 0.28 });
+      const trigger = ScrollTrigger.create({
+        trigger: sectionEl,
+        start: "top top",
+        once: true,
+        onEnter: () => {
+          revealTl.play(0);
+        },
+      });
 
       return () => {
         split.revert();
-        // Clean up the forced fixed positioning if it was applied
-        gsap.set(sectionEl, {
-          clearProps: "position,top,left,width,zIndex,transform",
-        });
+        trigger.kill();
+        revealTl.kill();
       };
     },
     { scope: sectionRef },
@@ -184,10 +138,10 @@ export function ClosingSection() {
           </p>
 
           <div data-closing-ctas className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <Button size="lg" onClick={() => router.push("/app")}>
+            <Button size="lg" onClick={() => router.push("/app/co-reading")}>
               Open workspace <ArrowRight className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="lg" onClick={() => router.push("/history")}>
+            <Button variant="outline" size="lg" onClick={() => router.push("/app/history")}>
               View history
             </Button>
           </div>

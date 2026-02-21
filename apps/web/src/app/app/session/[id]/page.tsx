@@ -1,4 +1,4 @@
-import { SessionClient } from "@/app/session/[id]/session-client";
+import { SessionClient } from "@/app/app/session/[id]/session-client";
 
 export default async function SessionPage({
   params,

@@ -77,7 +77,7 @@ If you don’t set `GEMINI_API_KEY`, the UI pipeline still works (fallback evide
 
 ### 3) Use it
 
-1) Go to `http://localhost:3000/app`
+1) Go to `http://localhost:3000/app/co-reading`
 2) Paste a URL and click Analyze
 3) In the session page, click Start under Live Audio and speak
 

@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
 
-import { SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
+import { ScrollTrigger, SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
 
 registerGsapPlugins();
 
@@ -160,92 +160,42 @@ export function UseCasesSection() {
         gsap.set(p, { autoAlpha: i === 0 ? 1 : 0, x: i === 0 ? 0 : 60 });
       });
 
-      /* Scroll-driven tab switcher */
-      const switchToTab = (idx: number) => {
-        setActiveCase(USE_CASES[idx].id);
-        tabPanels.forEach((p, i) => {
-          if (i === idx) {
-            gsap.to(p, { autoAlpha: 1, x: 0, duration: 0.2, ease: "power3.out" });
-            p.removeAttribute("aria-hidden");
-            p.removeAttribute("inert");
-          } else {
-            gsap.to(p, {
-              autoAlpha: 0,
-              x: i < idx ? -50 : 50,
-              duration: 0.15,
-              ease: "power2.in",
-            });
-            p.setAttribute("aria-hidden", "true");
-            p.setAttribute("inert", "");
-          }
-        });
-      };
+      const revealTl = gsap.timeline({
+        paused: true,
+        defaults: { ease: "power3.out" },
+      });
 
-       const tl = gsap.timeline({
-         defaults: { ease: "none" },
-         scrollTrigger: {
-           trigger: sectionRef.current,
-           start: "top top",
-           end: () => "+=" + window.innerHeight * 2.0,
-           pin: true,
-           scrub: 0.6,
-           invalidateOnRefresh: true,
-         },
-       });
-
-      /* ── Lead-in: pinned but calm ── */
-      tl.to({}, { duration: 0.08 });
-      tl.addLabel("in");
-
-      /* ── Entrance: staggered line reveal + content fade ── */
-      tl.to(label, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power3.out" }, "in")
+      revealTl
+        .to(label, { autoAlpha: 1, y: 0, duration: 0.45 })
         .to(
           lines,
           {
             autoAlpha: 1,
             yPercent: 0,
-            stagger: 0.12,
-            duration: 0.4,
-            ease: "back.out(1.5)",
+            stagger: 0.14,
+            duration: 0.85,
+            ease: "back.out(1.4)",
           },
-          "in+=0.04",
+          "-=0.15",
         )
-        .to(body, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, "in+=0.14")
-        .to(nav, { autoAlpha: 1, y: 0, duration: 0.18, ease: "power3.out" }, "in+=0.2")
-        .to(contentWrap, { autoAlpha: 1, y: 0, duration: 0.2, ease: "power3.out" }, "in+=0.26")
+        .to(body, { autoAlpha: 1, y: 0, duration: 0.55 }, "-=0.6")
+        .to(nav, { autoAlpha: 1, y: 0, duration: 0.6 }, "-=0.4")
+        .to(contentWrap, { autoAlpha: 1, y: 0, duration: 0.6 }, "-=0.45");
 
-        /* ── Tab cycling: scroll-driven ── */
-        .addLabel("policy", "in+=0.36")
-        .call(() => switchToTab(0), [], "policy")
-
-        .to({}, { duration: 0.08 })
-
-        .addLabel("research", ">")
-        .call(() => switchToTab(1), [], "research")
-
-        .to({}, { duration: 0.08 })
-
-        .addLabel("product", ">")
-        .call(() => switchToTab(2), [], "product")
-
-        .to({}, { duration: 0.08 })
-
-        .addLabel("media", ">")
-        .call(() => switchToTab(3), [], "media")
-
-        .to({}, { duration: 0.08 })
-
-        /* ── Exit: scale + fade ── */
-        .addLabel("exit", ">")
-        .to(
-          sectionRef.current.querySelector("[data-use-inner]")!,
-          { scale: 0.96, autoAlpha: 0, duration: 0.1, ease: "power3.in" },
-          "exit",
-        );
+      const trigger = ScrollTrigger.create({
+        trigger: sectionRef.current,
+        start: "top top",
+        once: true,
+        onEnter: () => {
+          revealTl.play(0);
+        },
+      });
 
       return () => {
         removeMasks();
         split.revert();
+        trigger.kill();
+        revealTl.kill();
       };
     },
     { scope: sectionRef },
