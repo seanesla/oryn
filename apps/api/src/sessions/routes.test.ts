@@ -82,6 +82,18 @@ test("mutations: constraints, transcript, pin, regenerate", async () => {
     method: "POST",
   });
   expect(analyzeRes.status).toBe(202);
+  const analyzeBody = (await analyzeRes.json()) as any;
+  expect(analyzeBody.ok).toBe(true);
+  expect(analyzeBody.started).toBe(true);
+
+  // Calling analyze again should be a no-op.
+  const analyzeRes2 = await fetch(`${baseUrl}/v1/sessions/${session.sessionId}/analyze`, {
+    method: "POST",
+  });
+  expect(analyzeRes2.status).toBe(202);
+  const analyzeBody2 = (await analyzeRes2.json()) as any;
+  expect(analyzeBody2.ok).toBe(true);
+  expect(analyzeBody2.started).toBe(false);
 
   // Poll for evidence cards
   let final: any = null;

@@ -24,8 +24,18 @@ export function listSessions(): Array<SessionListItem> {
 export async function refreshSessions(limit = 10): Promise<Array<SessionListItem>> {
   const res = await apiFetch(`/v1/sessions?limit=${encodeURIComponent(String(limit))}`);
   const list = (await res.json()) as Array<SessionListItem>;
-  writeJson(LIST_KEY, list.slice(0, 10));
-  return list.slice(0, 10);
+  const trimmed = list.slice(0, 10);
+
+  // If the API uses an in-memory store (dev / restarted backend), it can
+  // legitimately return an empty list even though the browser has local
+  // history. Don't wipe local history in that case.
+  if (trimmed.length === 0) {
+    const cached = readJson<Array<SessionListItem>>(LIST_KEY, []).slice(0, 10);
+    if (cached.length > 0) return cached;
+  }
+
+  writeJson(LIST_KEY, trimmed);
+  return trimmed;
 }
 
 export function getSession(sessionId: string): SessionArtifacts | null {

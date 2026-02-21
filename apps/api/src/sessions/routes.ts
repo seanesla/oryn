@@ -166,12 +166,25 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
       const session = await store.get(sessionId);
       if (!session) return reply.code(404).send({ error: "Session not found" });
 
+      // Idempotency: avoid kicking off duplicate analyses.
+      if (session.pipeline.evidenceBuilding || session.evidenceCards.length > 0) {
+        return reply.code(202).send({ ok: true, started: false });
+      }
+
+      // Mark analysis as started immediately so clients don't double-trigger.
+      const marked = {
+        ...session,
+        pipeline: { ...session.pipeline, evidenceBuilding: true },
+      };
+      await store.put(marked);
+      bus.publish(sessionId, marked);
+
       // Fire-and-forget analysis.
       runSessionAnalysis({ sessionId, store, bus, logger: server.log }).catch((err) => {
         server.log.error({ err, sessionId }, "analysis failed");
       });
 
-      return reply.code(202).send({ ok: true });
+      return reply.code(202).send({ ok: true, started: true });
     },
   );
 

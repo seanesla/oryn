@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 import type { SessionArtifacts } from "@/lib/contracts";
 

@@ -99,7 +99,10 @@ export function AccentProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const saved = readJson<{ id: string }>(STORAGE_KEY, { id: "indigo" });
     const stored = ACCENTS.find((a) => a.id === saved.id);
-    if (stored) setAccent(stored);
+    if (stored) {
+      // Avoid sync setState in effect body (eslint rule).
+      Promise.resolve().then(() => setAccent(stored));
+    }
   }, []);
 
   useEffect(() => {

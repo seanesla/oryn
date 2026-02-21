@@ -82,7 +82,6 @@ function LenisGsapBridge() {
 // Small delay so rapid flicks aren't interrupted by premature snaps.
 const SNAP_IDLE_DELAY = 100;
 /** Fraction of viewport height used as catch radius for near-boundary nudge. */
-const SNAP_NEAR_RADIUS = 0.5;
 /** Px tolerance when comparing Lenis targetScroll to our snap target. */
 const SNAP_INTERRUPT_TOLERANCE = 5;
 /**

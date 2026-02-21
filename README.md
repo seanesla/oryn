@@ -1,154 +1,120 @@
 # oryn
 
-Live co-reading agent for the Gemini Live Agent Challenge.
+**oryn** is an AI co-reading assistant built for the Gemini Live Agent Challenge. Paste a URL to any article, paper, or transcript — oryn reads it alongside you, surfaces evidence cards, flags disagreements, and suggests what to read next, all while you talk to it out loud in real time.
 
-- Mic audio in -> Gemini Live -> audio out
-- Real-time artifacts (SSE): transcript, evidence cards, trace, and a 3-item “next reads” choice set
-- Backend orchestrator designed for Cloud Run (Google Cloud)
+**Live demo:** https://oryn-web-s7x67kchsa-uc.a.run.app
 
-## Hackathon compliance (Live Agents)
+## How it works
 
-- Gemini Live API: used via Google GenAI SDK (`@google/genai`) in `apps/api`
-- Beyond text: streaming audio input/output + live transcription
-- Google Cloud service: backend deploy target is Cloud Run (script included)
+1. Paste any URL into the app and click **Analyze**
+2. oryn fetches the content and builds evidence cards, argument clusters, and a "next reads" shortlist
+3. Click **Start Live Audio** to open a voice session — speak naturally and oryn responds via Gemini Live
+4. Artifacts (transcript, evidence, trace) stream to the UI as the conversation unfolds
+
+## Hackathon compliance
+
+| Requirement | How oryn meets it |
+|---|---|
+| Gemini Live API | Voice I/O powered by `@google/genai` in `apps/api` |
+| Beyond text | Streaming audio in + out, live transcription over WebSocket |
+| Google Cloud | Deployed to Cloud Run (`us-central1`) |
+
+## Tech stack
+
+- **Frontend:** Next.js, WebSocket + SSE for real-time updates
+- **Backend:** Fastify, Gemini Live proxy, pipeline orchestrator
+- **AI:** Gemini Live 2.5 Flash (voice), Gemini 2.0 Flash (analysis tools)
+- **Cloud:** Google Cloud Run, optional Firestore session store, optional GCS caching
 
 ## Repo structure
 
-- `apps/web` Next.js UI
-- `apps/api` Fastify orchestrator + Gemini Live proxy
-- `packages/tools` (`@oryn/tools`) -- 8 tool modules: grounded-search, fetch-and-extract, extract-claims, classify-disagreement, build-evidence-cards, build-clusters, optimize-choice-set, cache
-- `packages/agent` (`@oryn/agent`) -- system-instruction builder + epistemic contract
-- `packages/shared` shared types/protocol
-- `docs/architecture.md` architecture overview
-- `architecture-4.md` full architecture spec with diagrams
+```
+apps/
+  web/        Next.js UI
+  api/        Fastify backend + Gemini Live proxy
+packages/
+  tools/      8 analysis tool modules (search, extract, classify, cluster, optimize)
+  agent/      System instruction builder + epistemic contract
+  shared/     Shared TypeScript types and wire protocol
+docs/
+  architecture.md     System overview
+  demo_script.md      Demo walkthrough
+  threat_model.md     Security considerations
+architecture-4.md     Full architecture spec with diagrams
+```
 
 ## Architecture diagrams
 
-The diagrams below are generated from Structurizr DSL in `structurizr/workspace.dsl`.
+Generated from `structurizr/workspace.dsl` — run `npm run diagrams:export` to regenerate.
 
-If this is your first time generating diagrams, download the Structurizr CLI:
-
-```bash
-mkdir -p structurizr/bin
-curl -L -o structurizr/bin/structurizr-cli.zip https://github.com/structurizr/cli/releases/latest/download/structurizr-cli.zip
-unzip -o structurizr/bin/structurizr-cli.zip -d structurizr/bin
-```
-
-You also need Graphviz installed so the `dot` command can render PNG images.
-The export script also uses Python 3 + Pillow to compose the branded 16:9 PNGs.
-
-```bash
-npm run diagrams:export
-```
-
-### 1) General architecture
+### System overview
 
 ![oryn general architecture](structurizr/diagrams/general-architecture.png)
 
-### 2) Live co-reading flow
+### Live session flow
 
 ![oryn live co-reading flow](structurizr/diagrams/live-co-reading-flow.png)
 
-## Local dev
+## Running locally
 
-### Prereqs
-
-- Node.js 22+
-- npm
-
-### 1) Install
+**Requirements:** Node.js 22+, npm, a Gemini API key ([get one free at Google AI Studio](https://aistudio.google.com/))
 
 ```bash
+# 1. Install dependencies
 npm install
+
+# 2. Copy env templates
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
+
+# 3. Start both services
+GEMINI_API_KEY=your_key_here npm run dev
 ```
 
-### 2) Run web + api
+- **Web:** http://localhost:3000/app/co-reading
+- **API:** http://localhost:8787
 
-Copy env templates if you want:
-
-- `apps/api/.env.example`
-- `apps/web/.env.example`
+> Without `GEMINI_API_KEY`, the analysis pipeline runs with fallback data and Live voice is disabled.
 
 ```bash
-GEMINI_API_KEY=YOUR_KEY_HERE npm run dev
-```
-
-- Web: `http://localhost:3000`
-- API: `http://localhost:8787`
-
-If you don’t set `GEMINI_API_KEY`, the UI pipeline still works (fallback evidence/choice set), but Live voice is disabled.
-
-### 3) Use it
-
-1) Go to `http://localhost:3000/app/co-reading`
-2) Paste a URL and click Analyze
-3) In the session page, click Start under Live Audio and speak
-
-## Backend tests
-
-```bash
-npm test
+npm test   # run backend tests
 ```
 
 ## Environment variables
 
-Backend (`apps/api`):
+### Backend (`apps/api`)
 
-- Auth (pick one)
-  - Developer API: `GEMINI_API_KEY`
-  - Vertex AI (recommended on Cloud Run): `GOOGLE_GENAI_USE_VERTEXAI=true`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`
-- `GEMINI_LIVE_MODEL` (default: `gemini-live-2.5-flash-preview`)
-- `GEMINI_MODEL` (default: `gemini-2.0-flash` for non-live calls)
-- `GEMINI_VOICE_NAME` (default: `Aoede`)
-- `CORS_ORIGIN` (optional; allow your deployed web origin)
-- `SESSION_STORE` (default: `memory`; set to `firestore` to persist sessions)
-- `FIRESTORE_SESSIONS_COLLECTION` (default: `oryn_sessions`)
-- `ORYN_GCS_ENABLE` (set to `true` to enable GCS artifact caching)
-- `ORYN_GCS_BUCKET` (GCS bucket name for cached extractions)
+| Variable | Required | Default | Notes |
+|---|---|---|---|
+| `GEMINI_API_KEY` | One of the two auth options | — | Developer API key |
+| `GOOGLE_GENAI_USE_VERTEXAI` + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION` | One of the two auth options | — | Vertex AI (recommended on Cloud Run) |
+| `GEMINI_LIVE_MODEL` | No | `gemini-live-2.5-flash-preview` | |
+| `GEMINI_MODEL` | No | `gemini-2.0-flash` | Used for analysis tools |
+| `GEMINI_VOICE_NAME` | No | `Aoede` | |
+| `CORS_ORIGIN` | No | — | Set to your web URL in production |
+| `SESSION_STORE` | No | `memory` | Set to `firestore` to persist sessions |
+| `FIRESTORE_SESSIONS_COLLECTION` | No | `oryn_sessions` | |
+| `ORYN_GCS_ENABLE` / `ORYN_GCS_BUCKET` | No | — | GCS artifact caching |
 
-Web (`apps/web`):
+### Web (`apps/web`)
 
-- `NEXT_PUBLIC_API_BASE_URL` (default: `http://localhost:8787`)
+| Variable | Required | Default |
+|---|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | No | `http://localhost:8787` |
 
-## Deploy (Cloud Run)
+## Deploying to Cloud Run
 
-This repo includes a simple Cloud Run deploy script for the API.
+> Requires a Google Cloud project with billing enabled.
+
+The deploy scripts handle Artifact Registry setup, Cloud Build, and service account permissions automatically. The API is configured with a `3600s` request timeout to support long-running SSE and WebSocket connections.
 
 ```bash
+# Deploy API first
 infra/cloudrun/deploy_api.sh YOUR_GCP_PROJECT_ID us-central1
-```
 
-Deploy the web UI to Cloud Run too:
+# Then deploy web, passing your API URL
+infra/cloudrun/deploy_web.sh YOUR_GCP_PROJECT_ID https://oryn-api-s7x67kchsa-uc.a.run.app us-central1
 
-```bash
-infra/cloudrun/deploy_web.sh YOUR_GCP_PROJECT_ID https://YOUR_API_RUN_URL us-central1
-```
-
-Notes:
-
-- Cloud Run/Build/Vertex AI require **billing enabled**. Small demo usage is usually low-cost, but it is not guaranteed to be $0.
-- The deploy script defaults to **Vertex AI auth** (no API key) by setting `GOOGLE_GENAI_USE_VERTEXAI=true` on the service.
-- Cleanup script:
-
-```bash
-infra/cloudrun/cleanup_api.sh YOUR_GCP_PROJECT_ID us-central1
-```
-
-Cleanup everything (api + web + container repo):
-
-```bash
+# Tear everything down
 infra/cloudrun/cleanup_all.sh YOUR_GCP_PROJECT_ID us-central1
 ```
-
-After deploy, set your web env:
-
-```bash
-export NEXT_PUBLIC_API_BASE_URL=https://YOUR_CLOUD_RUN_URL
-```
-
-## Docs
-
-- `architecture-4.md` -- full architecture spec (sections 1-15, diagrams)
-- `docs/architecture.md` -- concise architecture overview
-- `docs/demo_script.md`
-- `docs/threat_model.md`

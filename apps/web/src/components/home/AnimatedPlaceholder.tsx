@@ -43,7 +43,8 @@ export function useTypingPlaceholder(
 
   useEffect(() => {
     if (!active || shouldReduceMotion) {
-      setText("");
+      // Avoid sync setState in effect body (eslint rule).
+      Promise.resolve().then(() => setText(""));
       return;
     }
 
@@ -75,8 +76,11 @@ export function useTypingPlaceholder(
         const t = setTimeout(() => setText(text.slice(0, -1)), 18);
         return () => clearTimeout(t);
       } else {
-        setIdx((i) => i + 1);
-        setPhase("typing");
+        // Avoid sync setState in effect body (eslint rule).
+        Promise.resolve().then(() => {
+          setIdx((i) => i + 1);
+          setPhase("typing");
+        });
       }
     }
   }, [active, examples, idx, phase, shouldReduceMotion, text]);

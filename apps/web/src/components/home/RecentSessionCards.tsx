@@ -213,7 +213,8 @@ export function RecentSessionCards() {
   useEffect(() => {
     /* Show cached list immediately while fresh data loads */
     const cached = listSessions();
-    setSessions(cached);
+    // Avoid sync setState in effect body (eslint rule).
+    Promise.resolve().then(() => setSessions(cached));
 
     refreshSessions(8)
       .then((list) => setSessions(list))

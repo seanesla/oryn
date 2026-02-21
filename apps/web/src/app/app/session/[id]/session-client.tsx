@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { motion, useReducedMotion } from "motion/react";
 import { Check, Loader2 } from "lucide-react";
@@ -94,12 +94,17 @@ function PipelineStepper({
 export function SessionClient({ sessionId }: { sessionId: string }) {
   const { runtime, actions } = useSessionRuntime(sessionId);
   const shouldReduceMotion = useReducedMotion();
+  const analysisRequestedRef = useRef(false);
 
   useEffect(() => {
     if (!runtime.state) return;
     if (runtime.state.pipeline.evidenceBuilding) return;
     if (runtime.state.evidenceCards.length > 0) return;
-    actions.startAnalysis();
+    if (analysisRequestedRef.current) return;
+    analysisRequestedRef.current = true;
+    Promise.resolve(actions.startAnalysis()).catch(() => {
+      analysisRequestedRef.current = false;
+    });
   }, [actions, runtime.state]);
 
   const s = runtime.state;

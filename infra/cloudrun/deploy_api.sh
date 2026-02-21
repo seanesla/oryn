@@ -22,6 +22,8 @@ set -euo pipefail
 #   CORS_ORIGIN
 #   SESSION_STORE (memory|firestore)
 #   FIRESTORE_SESSIONS_COLLECTION
+#   ORYN_GCS_ENABLE (true|false)
+#   ORYN_GCS_BUCKET (bucket name)
 
 PROJECT_ID=${1:?"Missing PROJECT_ID"}
 REGION=${2:-us-central1}
@@ -32,12 +34,14 @@ IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}"
 echo "Setting gcloud project: ${PROJECT_ID}"
 gcloud config set project "${PROJECT_ID}" --quiet
 
-echo "Enabling required APIs (Run, Build, Artifact Registry, Vertex AI)"
+echo "Enabling required APIs (Run, Build, Artifact Registry, Vertex AI, Firestore, Storage)"
 gcloud services enable \
   run.googleapis.com \
   cloudbuild.googleapis.com \
   artifactregistry.googleapis.com \
   aiplatform.googleapis.com \
+  firestore.googleapis.com \
+  storage.googleapis.com \
   --project "${PROJECT_ID}" \
   --quiet
 
@@ -70,6 +74,15 @@ gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
   --member "serviceAccount:${SA_EMAIL}" \
   --role "roles/aiplatform.user" \
   --quiet
+
+STORE_TYPE=$(echo "${SESSION_STORE:-memory}" | tr '[:upper:]' '[:lower:]')
+if [ "${STORE_TYPE}" = "firestore" ]; then
+  echo "Granting Firestore (Datastore) user role to: ${SA_EMAIL}"
+  gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+    --member "serviceAccount:${SA_EMAIL}" \
+    --role "roles/datastore.user" \
+    --quiet
+fi
 
 # Grant Storage access if GCS caching is enabled
 if [ -n "${ORYN_GCS_BUCKET:-}" ]; then
@@ -114,6 +127,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --image "${IMAGE}" \
   --allow-unauthenticated \
   --service-account "${SA_EMAIL}" \
+  --timeout 3600 \
   --min-instances 0 \
   --max-instances 1 \
   --set-env-vars "GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-true}" \
