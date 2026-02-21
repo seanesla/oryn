@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
-import { RefreshCcw, Sparkles, ExternalLink } from "lucide-react";
+import { RefreshCcw, ExternalLink } from "lucide-react";
 
 import type { SessionArtifacts } from "@/lib/contracts";
 import type { RuntimeActions } from "@/lib/runtimeTypes";
@@ -43,10 +43,7 @@ export function ChoiceSetPanel({
             A deliberate choice set. Not a feed.
           </div>
         </div>
-        <Badge tone="accent">
-          <Sparkles className="h-3.5 w-3.5" />
-          {items.length}/3
-        </Badge>
+        <Badge variant="counter" tone="accent">{items.length}/3</Badge>
       </div>
 
       <Divider className="my-4" />
@@ -65,33 +62,45 @@ export function ChoiceSetPanel({
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, filter: "blur(6px)" }}
             transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
             className={cn(
-              "block rounded-[var(--radius-sm)] border border-[color:var(--border)]",
-              "bg-[color:color-mix(in_oklab,var(--card)_84%,transparent)] p-3",
+              "group block rounded-[var(--radius-sm)] border border-[color:var(--border)]",
+              "bg-[color:color-mix(in_oklab,var(--card)_84%,transparent)]",
               "transition hover:border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))]"
             )}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-[calc(var(--radius-sm)-2px)] border border-[color:color-mix(in_oklab,var(--accent)_35%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_10%,var(--card))] px-1.5 py-0.5 text-[10px] font-medium text-[color:var(--fg)]">
-                    #{idx + 1}
-                  </div>
-                  <div className="truncate text-[11px] text-[color:var(--muted-fg)]">{i.domain}</div>
-                </div>
-                <div className="mt-2 line-clamp-2 text-sm font-semibold leading-snug tracking-[-0.01em] text-[color:var(--fg)]">
-                  {i.title}
-                </div>
+            <div className="flex">
+              {/* Large step number */}
+              <div className="flex w-10 shrink-0 items-start justify-center pt-3.5">
+                <span className="text-lg font-bold tabular-nums text-[color:color-mix(in_oklab,var(--accent)_50%,var(--muted-fg))]">
+                  {idx + 1}
+                </span>
               </div>
-              <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--muted-fg)]" />
-            </div>
 
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Badge tone="accent">{i.frameLabel}</Badge>
-              {i.opensMissingFrame ? <Badge tone="warn">opens a missing frame</Badge> : null}
-              {i.isPrimarySource ? <Badge tone="good">primary source</Badge> : null}
-            </div>
+              {/* Content */}
+              <div className="flex-1 py-3 pr-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-[color:var(--muted-fg)]">{i.domain}</div>
+                    <div className="mt-1 line-clamp-2 text-sm font-semibold leading-snug tracking-[-0.01em] text-[color:var(--fg)]">
+                      {i.title}
+                    </div>
+                  </div>
+                  <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--muted-fg)] opacity-0 transition-opacity group-hover:opacity-100" />
+                </div>
 
-            <div className="mt-2 text-xs leading-relaxed text-[color:var(--muted-fg)]">{i.reason}</div>
+                {/* Inline labels instead of badge row */}
+                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                  <Badge variant="label" tone="accent">{i.frameLabel}</Badge>
+                  {i.opensMissingFrame ? (
+                    <span className="italic text-[color:var(--warn)]">opens a missing frame</span>
+                  ) : null}
+                  {i.isPrimarySource ? (
+                    <span className="italic text-[color:var(--good)]">primary source</span>
+                  ) : null}
+                </div>
+
+                <div className="mt-1.5 text-xs leading-relaxed text-[color:var(--muted-fg)]">{i.reason}</div>
+              </div>
+            </div>
           </motion.a>
         ))}
         </AnimatePresence>
@@ -105,16 +114,12 @@ export function ChoiceSetPanel({
 
       <Divider className="my-4" />
 
-      <div className="grid gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-xs font-medium text-[color:var(--muted-fg)]">Regenerate with constraints</div>
-          <Button variant="outline" size="sm" onClick={handleRegenerate} disabled={items.length !== 3 || regenerating}>
-            <RefreshCcw className={cn("h-4 w-4", regenerating ? "animate-spin" : "")} />
-            {regenerating ? "Regenerating" : "Regenerate"}
-          </Button>
-        </div>
-
-
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-[color:var(--muted-fg)]">Regenerate with constraints</div>
+        <Button variant="outline" size="sm" onClick={handleRegenerate} disabled={items.length !== 3 || regenerating}>
+          <RefreshCcw className={cn("h-4 w-4", regenerating ? "animate-spin" : "")} />
+          {regenerating ? "Regenerating" : "Regenerate"}
+        </Button>
       </div>
     </Card>
   );

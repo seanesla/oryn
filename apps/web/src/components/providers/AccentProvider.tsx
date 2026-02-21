@@ -91,10 +91,16 @@ function applyAccentToRoot(accent: AccentPreset) {
 }
 
 export function AccentProvider({ children }: { children: React.ReactNode }) {
-  const saved = readJson<{ id: string }>(STORAGE_KEY, { id: "indigo" });
-  const initial = ACCENTS.find((a) => a.id === saved.id) ?? ACCENTS[0]!;
+  // Always initialize with the hardcoded default so the server-rendered HTML
+  // matches the initial client render (avoiding a hydration mismatch).
+  // After mount, we hydrate from localStorage in a separate effect.
+  const [accent, setAccent] = useState<AccentPreset>(ACCENTS[0]!);
 
-  const [accent, setAccent] = useState<AccentPreset>(initial);
+  useEffect(() => {
+    const saved = readJson<{ id: string }>(STORAGE_KEY, { id: "indigo" });
+    const stored = ACCENTS.find((a) => a.id === saved.id);
+    if (stored) setAccent(stored);
+  }, []);
 
   useEffect(() => {
     applyAccentToRoot(accent);

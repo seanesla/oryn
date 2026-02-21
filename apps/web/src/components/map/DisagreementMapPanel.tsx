@@ -15,7 +15,7 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { Layers3, ListChecks } from "lucide-react";
+
 
 import type { Confidence, SessionArtifacts } from "@/lib/contracts";
 import { cn } from "@/lib/cn";
@@ -174,10 +174,7 @@ export function DisagreementMapPanel({ session }: { session: SessionArtifacts })
             Interactive cluster graph for frames and claims.
           </div>
         </div>
-        <Badge tone="accent">
-          <Layers3 className="h-3.5 w-3.5" />
-          {clusters.length}
-        </Badge>
+        <Badge variant="counter" tone="accent">{clusters.length}</Badge>
       </div>
 
       {clusters.length === 0 ? (
@@ -243,10 +240,7 @@ export function DisagreementMapPanel({ session }: { session: SessionArtifacts })
                 <DialogTitle className="text-sm font-semibold tracking-[-0.02em]">{c.title}</DialogTitle>
                 <DialogDescription className="mt-1 text-xs text-[color:var(--muted-fg)]">Cluster detail</DialogDescription>
               </div>
-              <Badge tone="accent">
-                <ListChecks className="h-3.5 w-3.5" />
-                {c.claimIds.length}
-              </Badge>
+              <Badge variant="counter" tone="accent">{c.claimIds.length}</Badge>
             </div>
             <Divider className="my-3" />
             <div className="grid gap-4">
@@ -265,11 +259,14 @@ export function DisagreementMapPanel({ session }: { session: SessionArtifacts })
                       >
                         <div className="text-sm font-semibold text-[color:var(--fg)]">{card?.claimText ?? id}</div>
                         {card ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <Badge tone="accent">{card.disagreementType}</Badge>
-                            <Badge tone={card.confidence === "High" ? "good" : card.confidence === "Medium" ? "warn" : "bad"}>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <Badge variant="label" tone="accent">{card.disagreementType}</Badge>
+                            <span
+                              className="text-[11px] font-medium"
+                              style={{ color: card.confidence === "High" ? "var(--good)" : card.confidence === "Medium" ? "var(--warn)" : "var(--bad)" }}
+                            >
                               {card.confidence}
-                            </Badge>
+                            </span>
                           </div>
                         ) : null}
                       </div>

@@ -23,8 +23,7 @@ export function EpistemicContractPanel({ session }: { session: SessionArtifacts 
           <div className="text-sm font-semibold tracking-[-0.02em]">Epistemic Contract</div>
           <div className="mt-1 text-xs text-[color:var(--muted-fg)]">No unsupported factual claims.</div>
         </div>
-        <Badge tone={blocked ? "warn" : "good"}>
-          <ShieldCheck className="h-3.5 w-3.5" />
+        <Badge variant="status" tone={blocked ? "warn" : "good"}>
           {blocked ? "Evidence pending" : "Enforced"}
         </Badge>
       </div>

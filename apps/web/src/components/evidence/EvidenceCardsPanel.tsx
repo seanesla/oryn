@@ -23,6 +23,16 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, Dia
 import { Divider } from "@/components/ui/Divider";
 import { Input } from "@/components/ui/Input";
 
+/* ── Dispute type color stripe mapping ── */
+
+const disputeStripeColor: Record<DisagreementType, string> = {
+  Factual: "var(--accent)",
+  Causal: "var(--accent-2)",
+  Definition: "var(--warn)",
+  Values: "var(--bad)",
+  Prediction: "#a78bfa", // soft purple
+};
+
 const disputeTypes: Array<DisagreementType> = [
   "Factual",
   "Causal",
@@ -40,10 +50,10 @@ const disputeOrder: Record<DisagreementType, number> = {
   Prediction: 4,
 };
 
-function toneForConfidence(c: EvidenceCard["confidence"]) {
-  if (c === "High") return "good";
-  if (c === "Medium") return "warn";
-  return "bad";
+function confidenceColor(c: EvidenceCard["confidence"]): string {
+  if (c === "High") return "var(--good)";
+  if (c === "Medium") return "var(--warn)";
+  return "var(--bad)";
 }
 
 function explainDisputeType(t: DisagreementType) {
@@ -223,8 +233,11 @@ export function EvidenceCardsPanel({
             Each card must include a quote + a counter-frame.
           </div>
         </div>
-        <Badge tone={session.pipeline.evidenceBuilding ? "warn" : "good"}>
-          {session.pipeline.evidenceBuilding ? "Live building" : `${session.evidenceCards.length} cards`}
+        <Badge
+          variant="status"
+          tone={session.pipeline.evidenceBuilding ? "warn" : "good"}
+        >
+          {session.pipeline.evidenceBuilding ? "Building…" : `${session.evidenceCards.length} cards`}
         </Badge>
       </div>
 
@@ -272,12 +285,16 @@ export function EvidenceCardsPanel({
                             )
                           }
                           className={cn(
-                            "rounded-[var(--radius-sm)] border px-2.5 py-1 text-xs font-medium",
+                            "flex items-center gap-1.5 rounded-[var(--radius-sm)] border px-2.5 py-1 text-xs font-medium transition-colors",
                             active
                               ? "border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_12%,var(--card))] text-[color:var(--fg)]"
                               : "border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] text-[color:var(--muted-fg)] hover:text-[color:var(--fg)]"
                           )}
                         >
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{ background: disputeStripeColor[t] }}
+                          />
                           {t}
                         </button>
                       );
@@ -299,7 +316,7 @@ export function EvidenceCardsPanel({
                             )
                           }
                           className={cn(
-                            "rounded-[var(--radius-sm)] border px-2.5 py-1 text-xs font-medium",
+                            "rounded-[var(--radius-sm)] border px-2.5 py-1 text-xs font-medium transition-colors",
                             active
                               ? "border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_12%,var(--card))] text-[color:var(--fg)]"
                               : "border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] text-[color:var(--muted-fg)] hover:text-[color:var(--fg)]"
@@ -311,7 +328,7 @@ export function EvidenceCardsPanel({
                     })}
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] px-3 py-2">
+                <div className="flex items-center justify-between gap-3 px-1 py-2">
                   <div>
                     <div className="text-sm">Pinned first</div>
                     <div className="text-xs text-[color:var(--muted-fg)]">Keeps critical claims visible.</div>
@@ -320,7 +337,7 @@ export function EvidenceCardsPanel({
                     type="button"
                     onClick={() => setPinnedFirst((p) => !p)}
                     className={cn(
-                      "rounded-[var(--radius-sm)] border px-3 py-1 text-xs font-medium",
+                      "rounded-[var(--radius-sm)] border px-3 py-1 text-xs font-medium transition-colors",
                       pinnedFirst
                         ? "border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_12%,var(--card))]"
                         : "border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] text-[color:var(--muted-fg)]"
@@ -356,10 +373,10 @@ export function EvidenceCardsPanel({
               type="button"
               onClick={() => setSortBy("confidence")}
               className={cn(
-                "rounded-[var(--radius-sm)] border px-2 py-1 text-xs",
+                "rounded-[var(--radius-xs)] px-2 py-1 text-xs transition-colors",
                 sortBy === "confidence"
-                  ? "border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_12%,var(--card))] text-[color:var(--fg)]"
-                  : "border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] text-[color:var(--muted-fg)]"
+                  ? "bg-[color:color-mix(in_oklab,var(--accent)_14%,var(--surface-2))] text-[color:var(--fg)]"
+                  : "text-[color:var(--muted-fg)] hover:text-[color:var(--fg)]"
               )}
             >
               By confidence
@@ -368,10 +385,10 @@ export function EvidenceCardsPanel({
               type="button"
               onClick={() => setSortBy("dispute")}
               className={cn(
-                "rounded-[var(--radius-sm)] border px-2 py-1 text-xs",
+                "rounded-[var(--radius-xs)] px-2 py-1 text-xs transition-colors",
                 sortBy === "dispute"
-                  ? "border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_12%,var(--card))] text-[color:var(--fg)]"
-                  : "border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] text-[color:var(--muted-fg)]"
+                  ? "bg-[color:color-mix(in_oklab,var(--accent)_14%,var(--surface-2))] text-[color:var(--fg)]"
+                  : "text-[color:var(--muted-fg)] hover:text-[color:var(--fg)]"
               )}
             >
               By dispute type
@@ -407,78 +424,104 @@ export function EvidenceCardsPanel({
               whileHover={shouldReduceMotion ? undefined : { y: -1 }}
               transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
             >
+            {/* Card with left color stripe */}
             <div
               className={cn(
-              "rounded-[var(--radius-sm)] border p-3",
-              c.pinned
-                ? "border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_6%,var(--card))]"
-                : "border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_84%,transparent)]"
+                "overflow-hidden rounded-[var(--radius-sm)] border",
+                c.pinned
+                  ? "border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))]"
+                  : "border-[color:var(--border)]"
               )}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="line-clamp-2 text-sm font-semibold leading-snug tracking-[-0.01em] text-[color:var(--fg)]">
-                    {c.claimText}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Badge tone="accent">{c.disagreementType}</Badge>
-                    <Badge tone={toneForConfidence(c.confidence)}>{c.confidence}</Badge>
-                    {c.pinned ? <Badge tone="warn">Pinned</Badge> : null}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    aria-label={c.pinned ? "Unpin card" : "Pin card"}
-                    title={c.pinned ? "Unpin card" : "Pin card"}
-                    onClick={() => actions.togglePin(c.id)}
-                  >
-                    <Bookmark className={cn("h-4 w-4", c.pinned ? "text-[color:var(--accent)]" : "text-[color:var(--muted-fg)]")} />
-                  </Button>
-                  <EvidenceCardActions card={c} session={session} actions={actions} />
-                </div>
-              </div>
+              <div className="flex">
+                {/* Color stripe */}
+                <div
+                  className="w-1 shrink-0"
+                  style={{ background: disputeStripeColor[c.disagreementType] }}
+                />
 
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                  <div className="text-[11px] font-medium text-[color:var(--muted-fg)]">Evidence</div>
-                  {c.evidence.slice(0, 1).map((e) => (
-                    <div key={e.url} className="mt-2 text-xs leading-relaxed text-[color:var(--fg)]">
-                      <span className="text-[color:var(--muted-fg)]">"</span>
-                      {e.quote}
-                      <span className="text-[color:var(--muted-fg)]">"</span>
-                      <div className="mt-1">
-                        <a
-                          className="text-[color:var(--muted-fg)] underline decoration-[color:color-mix(in_oklab,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[color:var(--fg)]"
-                          href={e.url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {e.domain ?? e.url}
-                        </a>
+                {/* Card body */}
+                <div
+                  className={cn(
+                    "flex-1 p-3",
+                    c.pinned
+                      ? "bg-[color:color-mix(in_oklab,var(--accent)_6%,var(--card))]"
+                      : "bg-[color:color-mix(in_oklab,var(--card)_84%,transparent)]"
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="line-clamp-2 text-sm font-semibold leading-snug tracking-[-0.01em] text-[color:var(--fg)]">
+                        {c.claimText}
+                      </div>
+                      {/* Inline metadata instead of badge row */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
+                        <Badge variant="label" tone="neutral">{c.disagreementType}</Badge>
+                        <span style={{ color: confidenceColor(c.confidence) }} className="font-medium">
+                          {c.confidence} confidence
+                        </span>
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                  <div className="text-[11px] font-medium text-[color:var(--muted-fg)]">Counter-evidence / counter-frame</div>
-                  {c.counterEvidence.slice(0, 1).map((e) => (
-                    <div key={e.url} className="mt-2 text-xs leading-relaxed text-[color:var(--fg)]">
-                      <span className="text-[color:var(--muted-fg)]">"</span>
-                      {e.quote}
-                      <span className="text-[color:var(--muted-fg)]">"</span>
-                      <div className="mt-1">
-                        <a
-                          className="text-[color:var(--muted-fg)] underline decoration-[color:color-mix(in_oklab,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[color:var(--fg)]"
-                          href={e.url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {e.domain ?? e.url}
-                        </a>
-                      </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        aria-label={c.pinned ? "Unpin card" : "Pin card"}
+                        title={c.pinned ? "Unpin card" : "Pin card"}
+                        onClick={() => actions.togglePin(c.id)}
+                      >
+                        <Bookmark
+                          className={cn(
+                            "h-4 w-4",
+                            c.pinned ? "fill-[color:var(--accent)] text-[color:var(--accent)]" : "text-[color:var(--muted-fg)]"
+                          )}
+                        />
+                      </Button>
+                      <EvidenceCardActions card={c} session={session} actions={actions} />
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-[var(--radius-xs)] bg-[color:color-mix(in_oklab,var(--surface-3)_80%,transparent)] p-2.5">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-fg)]">Evidence</div>
+                      {c.evidence.slice(0, 1).map((e) => (
+                        <div key={e.url} className="mt-1.5 text-xs leading-relaxed text-[color:var(--fg)]">
+                          <span className="text-[color:var(--muted-fg)]">&ldquo;</span>
+                          {e.quote}
+                          <span className="text-[color:var(--muted-fg)]">&rdquo;</span>
+                          <div className="mt-1">
+                            <a
+                              className="text-[color:var(--muted-fg)] underline decoration-[color:color-mix(in_oklab,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[color:var(--fg)]"
+                              href={e.url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {e.domain ?? e.url}
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rounded-[var(--radius-xs)] bg-[color:color-mix(in_oklab,var(--surface-3)_80%,transparent)] p-2.5">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[color:var(--muted-fg)]">Counter-evidence</div>
+                      {c.counterEvidence.slice(0, 1).map((e) => (
+                        <div key={e.url} className="mt-1.5 text-xs leading-relaxed text-[color:var(--fg)]">
+                          <span className="text-[color:var(--muted-fg)]">&ldquo;</span>
+                          {e.quote}
+                          <span className="text-[color:var(--muted-fg)]">&rdquo;</span>
+                          <div className="mt-1">
+                            <a
+                              className="text-[color:var(--muted-fg)] underline decoration-[color:color-mix(in_oklab,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[color:var(--fg)]"
+                              href={e.url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {e.domain ?? e.url}
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

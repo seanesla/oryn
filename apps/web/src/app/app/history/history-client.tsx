@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { Clock, ExternalLink, History } from "lucide-react";
+import { ArrowRight, Clock, Search } from "lucide-react";
 
 import { listSessions, refreshSessions } from "@/lib/sessions";
 
 import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
-import { Divider } from "@/components/ui/Divider";
+import { Button } from "@/components/ui/Button";
 
 function fmt(ms: number) {
   const d = new Date(ms);
@@ -40,30 +39,46 @@ export function HistoryClient() {
   }, []);
 
   return (
-    <div className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-16 pt-10 sm:px-8">
-      <section className="section-label">Session Log</section>
-      <div className="panel-elevated mt-3 mb-6 flex flex-wrap items-end justify-between gap-4 rounded-[0.9rem] p-5">
+    <div className="relative z-10 mx-auto w-full max-w-5xl px-5 pb-16 pt-10 sm:px-8 sm:pt-14">
+      {/* ── Page header ── */}
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="font-serif text-[clamp(1.35rem,3.2vw,2rem)] leading-tight tracking-[-0.02em]">History</div>
-          <div className="mt-2 text-sm text-[color:var(--muted-fg)]">Last 10 sessions (from backend).</div>
+          <h1 className="font-serif text-[clamp(1.5rem,3.2vw,2.2rem)] leading-tight tracking-[-0.02em]">
+            History
+          </h1>
+          <p className="mt-1 text-sm text-[color:var(--muted-fg)]">
+            Recent sessions from your workspace.
+          </p>
         </div>
-        <Badge tone="accent">
-          <History className="h-3.5 w-3.5" />
-          {sessions.length}
-        </Badge>
+        <Badge variant="counter" tone="accent">{sessions.length}</Badge>
       </div>
 
-      <Card className="p-5">
-        <div className="text-sm font-semibold tracking-[-0.02em]">Sessions</div>
-        <div className="mt-1 text-xs text-[color:var(--muted-fg)]">Click to reopen (read-only snapshot in UI).</div>
-        <Divider className="my-4" />
-
-        <div className="space-y-3">
+      {/* ── Session list or empty state ── */}
+      {sessions.length === 0 ? (
+        /* ── Empty state: centered CTA ── */
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[color:color-mix(in_oklab,var(--accent)_12%,var(--surface-2))]">
+            <Search className="h-6 w-6 text-[color:var(--accent)]" />
+          </div>
+          <h2 className="mt-5 text-lg font-semibold text-[color:var(--fg)]">No sessions yet</h2>
+          <p className="mt-2 max-w-sm text-sm text-[color:var(--muted-fg)]">
+            Start by analyzing a URL or checking a claim. Your sessions will appear here.
+          </p>
+          <Link href="/app/co-reading">
+            <Button className="mt-5">
+              Start a session
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+      ) : (
+        /* ── Session rows ── */
+        <div className="space-y-2">
           {sessions.map((s) => (
             <Link
               key={s.sessionId}
               href={`/app/session/${s.sessionId}`}
-              className="block rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_86%,transparent)] p-3 transition hover:border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))] hover:shadow-[var(--shadow-glow)]"
+              className="group block rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_86%,transparent)] p-4 transition-all hover:border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))] hover:shadow-[var(--shadow-glow)]"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -74,27 +89,24 @@ export function HistoryClient() {
                     {s.url ?? (s.mode === "claim-check" ? "Claim check" : "")}
                   </div>
                 </div>
-                <ExternalLink className="h-4 w-4 shrink-0 text-[color:var(--muted-fg)]" />
+                <ArrowRight className="h-4 w-4 shrink-0 text-[color:var(--muted-fg)] opacity-0 transition-opacity group-hover:opacity-100" />
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge tone="accent">{s.mode}</Badge>
-                <Badge tone="neutral">{s.claimsCount} claims</Badge>
-                <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-[color:var(--muted-fg)]">
-                  <Clock className="h-3.5 w-3.5" />
+              {/* Inline text metadata instead of badge row */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[color:var(--muted-fg)]">
+                <span className="capitalize">{s.mode.replace("-", " ")}</span>
+                <span aria-hidden className="text-[color:var(--border-strong)]">&middot;</span>
+                <span>{s.claimsCount} claims</span>
+                <span aria-hidden className="text-[color:var(--border-strong)]">&middot;</span>
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
                   {fmt(s.createdAtMs)}
                 </span>
               </div>
             </Link>
           ))}
-
-          {sessions.length === 0 ? (
-            <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_86%,transparent)] p-4 text-sm text-[color:var(--muted-fg)]">
-              No sessions yet. Start from Co-Reading.
-            </div>
-          ) : null}
         </div>
-      </Card>
+      )}
     </div>
   );
 }

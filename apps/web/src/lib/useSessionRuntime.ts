@@ -4,41 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SessionArtifacts, SessionConstraints, TranscriptChunk, WsState } from "@/lib/contracts";
 import { apiFetch } from "@/lib/api";
+import { snapshotToMarkdown } from "@/lib/download";
 import { upsertSession } from "@/lib/sessions";
 import type { Runtime, RuntimeActions } from "@/lib/runtimeTypes";
-
-function snapshotToMarkdown(s: SessionArtifacts) {
-  return [
-    `# oryn session ${s.sessionId}`,
-    "",
-    `- Mode: ${s.mode}`,
-    s.url ? `- URL: ${s.url}` : "- URL: (none)",
-    s.domain ? `- Domain: ${s.domain}` : "",
-    s.title ? `- Title: ${s.title}` : "",
-    `- Evidence cards: ${s.evidenceCards.length}`,
-    `- Citations used: ${s.epistemic.citationsUsed}`,
-    "",
-    "## Choice Set (Next 3 Reads)",
-    ...s.choiceSet.slice(0, 3).map((i) => `- [${i.title}](${i.url}) — ${i.reason}`),
-    "",
-    "## Evidence Cards",
-    ...s.evidenceCards.flatMap((c) => [
-      `### ${c.claimText}`,
-      "",
-      `- Dispute: ${c.disagreementType}`,
-      `- Confidence: ${c.confidence}`,
-      "",
-      "Evidence:",
-      ...c.evidence.map((e) => `- \\\"${e.quote}\\\" (${e.url})`),
-      "",
-      "Counter-evidence:",
-      ...c.counterEvidence.map((e) => `- \\\"${e.quote}\\\" (${e.url})`),
-      "",
-    ]),
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
 
 export function useSessionRuntime(sessionId: string) {
   const [runtime, setRuntime] = useState<Runtime>({ state: null, isBooting: true });

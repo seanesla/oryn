@@ -12,8 +12,8 @@ import { LandingDotNav } from "@/components/landing/LandingDotNav";
 import { LandingStickyBackgroundStage } from "@/components/landing/LandingStickyBackgroundStage";
 import { GsapLenisProvider } from "@/components/landing/GsapLenisProvider";
 import { FallingPattern } from "@/components/ui/falling-pattern";
-import { LeftNav } from "@/components/shell/LeftNav";
-import { TopBar } from "@/components/shell/TopBar";
+import { NavRail } from "@/components/shell/NavRail";
+import { MobileNavPill } from "@/components/shell/MobileNavPill";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -47,7 +47,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const shellContent = (
     <div className="relative z-10">
-      {!isLanding ? <TopBar /> : null}
+      {!isLanding ? <NavRail /> : null}
+      {!isLanding ? <MobileNavPill /> : null}
       {isLanding ? <LandingDotNav /> : null}
       {isLanding ? (
         <main className="relative w-full">
@@ -64,8 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </AnimatePresence>
         </main>
       ) : (
-        <div className="mx-auto flex w-full max-w-[1600px] gap-0 px-3 pb-10 pt-14 sm:px-6">
-          <LeftNav />
+        <div className="mx-auto flex w-full max-w-[1600px] gap-0 px-3 pb-24 pt-4 md:pb-10 md:pl-20 sm:px-6">
           <main className="relative min-w-0 flex-1">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
@@ -86,13 +86,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider>
-      <div className={isLanding ? "app-bg app-bg-dynamic app-bg-landing-page" : "app-bg app-bg-landing-page"}>
+      <div className={isLanding ? "app-bg app-bg-dynamic app-bg-landing-page" : "app-bg app-bg-inner"}>
         {!isLanding ? (
-          <div className="pointer-events-none fixed inset-0 z-0">
-            <FallingPattern
-              className="h-full [mask-image:radial-gradient(ellipse_at_center,transparent,var(--bg))]"
-            />
-          </div>
+          <>
+            <div className="pointer-events-none fixed inset-0 z-0">
+              <FallingPattern
+                className="h-full [mask-image:radial-gradient(ellipse_at_center,transparent,var(--bg))]"
+              />
+            </div>
+            {/* Dark scrim — dims the app-page background ~50% */}
+            <div className="pointer-events-none fixed inset-0 z-[1] bg-black/35" />
+          </>
         ) : null}
         {isLanding ? <LandingStickyBackgroundStage /> : null}
         {isLanding && !introComplete ? (

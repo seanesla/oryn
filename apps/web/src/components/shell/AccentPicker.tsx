@@ -15,31 +15,54 @@ const QUALITY_LABELS: Record<(typeof BACKGROUND_QUALITY_OPTIONS)[number], string
   cinematic: "Cinematic",
 };
 
-export function AccentPicker() {
+export function AccentPicker({
+  compact = false,
+  side,
+  align = "end",
+}: {
+  compact?: boolean;
+  side?: "top" | "right" | "bottom" | "left";
+  align?: "start" | "center" | "end";
+} = {}) {
   const { accents, accent, setAccentId } = useAccent();
   const { quality, setQuality } = useBackground();
 
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <button
-          type="button"
-          aria-label="Theme"
-          className={cn(
-            "inline-flex h-8.5 items-center gap-2 rounded-[0.58rem] border border-[color:var(--border-soft)]",
-            "bg-[color:color-mix(in_oklab,var(--surface-3)_92%,transparent)] px-3 text-xs text-[color:var(--muted-fg)]",
-            "hover:border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))]"
-          )}
-        >
-          <Palette className="h-4 w-4" />
-          <span className="hidden sm:inline">Theme</span>
-          <span className="h-3.5 w-3.5 rounded-[3px]" style={{ background: "var(--accent)" }} />
-        </button>
+        {compact ? (
+          <button
+            type="button"
+            aria-label="Theme"
+            className={cn(
+              "inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)]",
+              "text-[color:var(--muted-fg)] transition-colors",
+              "hover:text-[color:var(--fg)] hover:bg-[color:color-mix(in_oklab,var(--surface-3)_86%,transparent)]"
+            )}
+          >
+            <span className="h-4 w-4 rounded-[4px] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]" style={{ background: "var(--accent)" }} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="Theme"
+            className={cn(
+              "inline-flex h-8.5 items-center gap-2 rounded-[0.58rem] border border-[color:var(--border-soft)]",
+              "bg-[color:color-mix(in_oklab,var(--surface-3)_92%,transparent)] px-3 text-xs text-[color:var(--muted-fg)]",
+              "hover:border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))]"
+            )}
+          >
+            <Palette className="h-4 w-4" />
+            <span className="hidden sm:inline">Theme</span>
+            <span className="h-3.5 w-3.5 rounded-[3px]" style={{ background: "var(--accent)" }} />
+          </button>
+        )}
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
           sideOffset={10}
-          align="end"
+          side={side}
+          align={align}
           className={cn(
             "z-50 w-56 rounded-[0.9rem] border border-[color:var(--border)]",
             "bg-[color:color-mix(in_oklab,var(--card)_96%,transparent)] p-1.5 shadow-[var(--shadow-soft)] backdrop-blur-xl"

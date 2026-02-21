@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 
 import { motion, useReducedMotion } from "motion/react";
+import { Check, Loader2 } from "lucide-react";
 
-import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { ChoiceSetPanel } from "@/components/choice/ChoiceSetPanel";
 import { EvidenceCardsPanel } from "@/components/evidence/EvidenceCardsPanel";
@@ -12,6 +12,84 @@ import { LiveAudioConsole } from "@/components/session/LiveAudioConsole";
 import { DetailDrawer } from "@/components/session/DetailDrawer";
 import { enterTransition } from "@/lib/motion";
 import { useSessionRuntime } from "@/lib/useSessionRuntime";
+import { cn } from "@/lib/cn";
+
+/* ── Pipeline stepper ── */
+
+type StepState = "pending" | "active" | "done";
+
+function PipelineStepper({
+  content,
+  claims,
+  evidence,
+}: {
+  content: boolean;
+  claims: boolean;
+  evidence: boolean; // true = still building
+}) {
+  const steps: Array<{ label: string; state: StepState }> = [
+    { label: "Content", state: content ? "done" : "active" },
+    { label: "Claims", state: claims ? "done" : content ? "active" : "pending" },
+    {
+      label: "Evidence",
+      state: !evidence && claims ? "done" : claims ? "active" : "pending",
+    },
+  ];
+
+  return (
+    <div className="flex items-center gap-0">
+      {steps.map((step, i) => (
+        <div key={step.label} className="flex items-center gap-0">
+          {/* Step circle + label */}
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                "flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold transition-colors duration-300",
+                step.state === "done"
+                  ? "bg-[color:var(--good)] text-[color:var(--bg)]"
+                  : step.state === "active"
+                    ? "bg-[color:color-mix(in_oklab,var(--accent)_24%,var(--surface-2))] text-[color:var(--accent)] ring-1 ring-[color:color-mix(in_oklab,var(--accent)_40%,transparent)]"
+                    : "bg-[color:var(--surface-3)] text-[color:var(--muted-fg)]"
+              )}
+            >
+              {step.state === "done" ? (
+                <Check className="h-3 w-3" />
+              ) : step.state === "active" ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                i + 1
+              )}
+            </div>
+            <span
+              className={cn(
+                "text-xs font-medium",
+                step.state === "done"
+                  ? "text-[color:var(--fg)]"
+                  : step.state === "active"
+                    ? "text-[color:var(--accent)]"
+                    : "text-[color:var(--muted-fg)]"
+              )}
+            >
+              {step.label}
+            </span>
+          </div>
+
+          {/* Connector line */}
+          {i < steps.length - 1 ? (
+            <div
+              className={cn(
+                "mx-2 h-px w-6 transition-colors duration-300",
+                steps[i + 1]!.state !== "pending"
+                  ? "bg-[color:color-mix(in_oklab,var(--accent)_40%,var(--border))]"
+                  : "bg-[color:var(--border)]"
+              )}
+            />
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function SessionClient({ sessionId }: { sessionId: string }) {
   const { runtime, actions } = useSessionRuntime(sessionId);
@@ -47,42 +125,36 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="relative z-10 mx-auto w-full max-w-[1600px] px-3 pb-10 pt-6 sm:px-6">
-      <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div className="panel-elevated min-w-0 rounded-[0.82rem] p-4">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-[color:var(--muted-fg)]">Active Session</div>
-          <div className="mt-1 truncate font-serif text-[clamp(1.3rem,2.6vw,1.9rem)] leading-tight tracking-[-0.02em]">
+      {/* ── Header ── */}
+      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        {/* Title + subtitle */}
+        <motion.div
+          className="min-w-0"
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 10, filter: "blur(6px)" }}
+          animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <div className="text-[11px] uppercase tracking-[0.1em] text-[color:var(--muted-fg)]">Active Session</div>
+          <h1 className="mt-1 truncate font-serif text-[clamp(1.3rem,2.6vw,1.9rem)] leading-tight tracking-[-0.02em]">
             {title}
-          </div>
-          <div className="mt-1 truncate text-xs text-[color:var(--muted-fg)]">{subtitle}</div>
-        </div>
-        <div className="panel-muted flex flex-wrap items-center gap-2 rounded-[0.7rem] p-2">
-          <motion.div layout transition={{ duration: 0.2 }}>
-            <Badge tone={s.pipeline.contentExtracted ? "good" : "neutral"}>
-              Content {s.pipeline.contentExtracted ? "extracted" : "pending"}
-            </Badge>
-          </motion.div>
-          <motion.div layout transition={{ duration: 0.2 }}>
-            <Badge tone={s.pipeline.claimsExtracted ? "good" : "neutral"}>
-              Claims {s.pipeline.claimsExtracted ? "extracted" : "pending"}
-            </Badge>
-          </motion.div>
-          <motion.div
-            layout
-            animate={
-              shouldReduceMotion
-                ? undefined
-                : s.pipeline.evidenceBuilding
-                  ? { scale: [1, 1.03, 1] }
-                  : { scale: 1 }
-            }
-            transition={{ duration: 0.35 }}
-          >
-            <Badge tone={s.pipeline.evidenceBuilding ? "warn" : "good"}>
-              Evidence {s.pipeline.evidenceBuilding ? "building" : "ready"}
-            </Badge>
-          </motion.div>
+          </h1>
+          <div className="mt-0.5 truncate text-xs text-[color:var(--muted-fg)]">{subtitle}</div>
+        </motion.div>
+
+        {/* Pipeline stepper + Detail Drawer */}
+        <motion.div
+          className="flex flex-wrap items-center gap-4"
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 10, filter: "blur(6px)" }}
+          animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ delay: 0.08, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <PipelineStepper
+            content={s.pipeline.contentExtracted}
+            claims={s.pipeline.claimsExtracted}
+            evidence={s.pipeline.evidenceBuilding}
+          />
           <DetailDrawer session={s} />
-        </div>
+        </motion.div>
       </div>
 
       {/* Mobile: 2 tabs */}
@@ -103,7 +175,7 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
       </div>
 
       {/* Desktop: 2-column */}
-      <div className="hidden lg:grid lg:grid-cols-[320px_minmax(560px,1fr)] lg:gap-4">
+      <div className="hidden lg:grid lg:grid-cols-[380px_minmax(560px,1fr)] lg:gap-5">
         <motion.div
           className="space-y-2"
           initial={shouldReduceMotion ? false : { opacity: 0, y: 10, filter: "blur(8px)"}}

@@ -1,5 +1,6 @@
-import { HistoryClient } from "@/app/app/history/history-client";
+import { redirect } from "next/navigation";
 
+/* History is now merged into the home page. Redirect any direct links. */
 export default function HistoryPage() {
-  return <HistoryClient />;
+  redirect("/app/co-reading");
 }

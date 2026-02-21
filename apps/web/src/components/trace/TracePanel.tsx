@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
-import { Clock, GitBranch, List, Wrench } from "lucide-react";
+import { Clock, GitBranch, List } from "lucide-react";
 
 import type { SessionArtifacts } from "@/lib/contracts";
 import { cn } from "@/lib/cn";
@@ -43,10 +43,7 @@ export function TracePanel({ session }: { session: SessionArtifacts }) {
           <div className="text-sm font-semibold tracking-[-0.02em]">Retrieval Trace</div>
           <div className="mt-1 text-xs text-[color:var(--muted-fg)]">Tool calls, constraints, and why sources were selected.</div>
         </div>
-        <Badge tone="accent">
-          <Wrench className="h-3.5 w-3.5" />
-          {toolCalls.length}
-        </Badge>
+        <Badge variant="counter" tone="accent">{toolCalls.length}</Badge>
       </div>
 
       <Tabs defaultValue="simple">

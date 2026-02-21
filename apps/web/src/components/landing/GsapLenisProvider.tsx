@@ -159,44 +159,50 @@ function LenisSectionSnap() {
 
       if (!tops.length) return;
 
-      // Find the closest section top to `destination`.
-      // Use scroll direction as a tiebreaker when two boundaries are
-      // roughly equidistant (within 10% of viewport height).
-      const tieZone = window.innerHeight * 0.1;
+      // Direction-aware midpoint snapping.
+      //
+      // Instead of snapping to the nearest section top (which can pull
+      // backward when a section is taller than the viewport), we bracket
+      // `destination` between the section top behind it and the one ahead,
+      // then commit to whichever side the user has passed the midpoint of.
+      // This matches the intent of their scroll gesture on every section,
+      // including the last one — no special-casing needed.
+      const dir = lastDirectionRef.current;
 
-      let best: number | null = null;
-      let bestDist = Infinity;
+      // Section top at or before destination (the one "behind" the user).
+      let prev: number | null = null;
+      // First section top strictly ahead of destination.
+      let next: number | null = null;
 
       for (const top of tops) {
-        const dist = Math.abs(destination - top);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = top;
+        if (top <= destination) {
+          if (prev === null || top > prev) prev = top;
+        } else {
+          if (next === null || top < next) next = top;
         }
       }
 
-      if (best === null) return;
+      let best: number;
+
+      if (prev === null) {
+        // Scrolled above the first section — snap to it.
+        best = tops[0];
+      } else if (next === null) {
+        // Scrolled past all section tops — snap to the last one.
+        best = tops[tops.length - 1];
+      } else {
+        // Bracket found. Snap forward if the user has crossed the midpoint
+        // in the scroll direction, otherwise snap back.
+        const midpoint = (prev + next) / 2;
+        if (dir === 1) {
+          best = destination >= midpoint ? next : prev;
+        } else {
+          best = destination <= midpoint ? prev : next;
+        }
+      }
 
       // Already essentially aligned — nothing to do.
-      if (bestDist <= 5) return;
-
-      // Tiebreaker: if two candidates are close in distance, prefer the
-      // one in the current scroll direction.
-      const dir = lastDirectionRef.current;
-      for (const top of tops) {
-        if (top === best) continue;
-        const dist = Math.abs(destination - top);
-        if (Math.abs(dist - bestDist) < tieZone) {
-          // This candidate is roughly the same distance — prefer the one
-          // that matches scroll direction.
-          const bestInDir = dir === 1 ? best > destination : best < destination;
-          const candInDir = dir === 1 ? top > destination : top < destination;
-          if (!bestInDir && candInDir) {
-            best = top;
-            break;
-          }
-        }
-      }
+      if (Math.abs(destination - best) <= 5) return;
 
       snapTo(best);
     },

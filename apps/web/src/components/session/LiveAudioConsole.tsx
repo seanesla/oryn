@@ -18,7 +18,6 @@ import { cn } from "@/lib/cn";
 
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { Divider } from "@/components/ui/Divider";
 import { Slider } from "@/components/ui/Slider";
 import { enterTransition } from "@/lib/motion";
@@ -247,7 +246,6 @@ export function LiveAudioConsole({
     const rate = parsePcmRate(opts.mimeType);
     const bytes = base64ToBytes(opts.dataBase64);
 
-    // Assume signed 16-bit little endian PCM.
     const sampleCount = Math.floor(bytes.length / 2);
     const floats = new Float32Array(sampleCount);
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -316,7 +314,6 @@ export function LiveAudioConsole({
           const m = (msg as { message?: unknown }).message;
           if (typeof m === "string") setLastError(m);
         }
-        // Show in debug panel via lastMessageType.
         return;
       }
     };
@@ -350,7 +347,6 @@ export function LiveAudioConsole({
 
       await ensureWsConnected();
 
-      // Start capturing PCM audio and streaming to backend.
       const ctx = new AudioContext({ sampleRate: 16000 });
       inputCtxRef.current = ctx;
       await ctx.resume().catch(() => {});
@@ -376,7 +372,6 @@ export function LiveAudioConsole({
       };
 
       src.connect(processor);
-      // Keep the processor alive without echoing to speakers.
       const zero = ctx.createGain();
       zero.gain.value = 0;
       processor.connect(zero);
@@ -390,7 +385,6 @@ export function LiveAudioConsole({
     setRecording(false);
     recordingRef.current = false;
 
-    // Stop audio input.
     try {
       processorRef.current?.disconnect();
     } catch {
@@ -400,7 +394,6 @@ export function LiveAudioConsole({
     inputCtxRef.current?.close().catch(() => {});
     inputCtxRef.current = null;
 
-    // Tell backend we're done.
     try {
       wsRef.current?.send(JSON.stringify({ type: "control.stop" }));
     } catch {
@@ -411,36 +404,39 @@ export function LiveAudioConsole({
     streamRef.current = null;
   }
 
-  const tokenCountdown = formatTime(15 * 60 * 1000);
+  const micStatusColor =
+    permission === "denied" ? "var(--bad)" : permission === "granted" ? "var(--good)" : "var(--muted-fg)";
 
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-sm font-semibold tracking-[-0.02em]">Live Audio</div>
-          <div className="mt-1 text-xs text-[color:var(--muted-fg)]">
-            Mic in, transcript out. Barge-in stops the agent instantly.
-          </div>
-        </div>
         <div className="flex items-center gap-2">
-          <Badge tone={permission === "denied" ? "bad" : permission === "granted" ? "good" : "neutral"}>
-            {permission === "granted" ? "Mic ready" : permission === "denied" ? "Mic blocked" : "Mic"}
-          </Badge>
-          <Button
-            variant="ghost"
-            aria-label={debugOpen ? "Hide debug" : "Show debug"}
-            title={debugOpen ? "Hide debug" : "Show debug"}
-            onClick={() => setDebugOpen((v) => !v)}
-          >
-            <Bug className="h-4 w-4" />
-          </Button>
+          <div className="text-sm font-semibold tracking-[-0.02em]">Live Audio</div>
+          {/* Dot status instead of badge */}
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ background: micStatusColor }}
+            title={permission === "granted" ? "Mic ready" : permission === "denied" ? "Mic blocked" : "Mic unknown"}
+          />
         </div>
+        <Button
+          variant="ghost"
+          aria-label={debugOpen ? "Hide debug" : "Show debug"}
+          title={debugOpen ? "Hide debug" : "Show debug"}
+          onClick={() => setDebugOpen((v) => !v)}
+        >
+          <Bug className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="mt-1 text-xs text-[color:var(--muted-fg)]">
+        Mic in, transcript out. Barge-in stops the agent instantly.
       </div>
 
       <Divider className="my-4" />
 
       {lastError ? (
-        <div className="rounded-[var(--radius-sm)] border border-[color:color-mix(in_oklab,var(--bad)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--bad)_10%,var(--card))] p-3 text-sm text-[color:var(--fg)]">
+        <div className="mb-3 rounded-[var(--radius-sm)] border border-[color:color-mix(in_oklab,var(--bad)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--bad)_10%,var(--card))] p-3 text-sm text-[color:var(--fg)]">
           {lastError}
         </div>
       ) : null}
@@ -452,7 +448,7 @@ export function LiveAudioConsole({
             animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
             transition={enterTransition(Boolean(shouldReduceMotion))}
-            className="rounded-[var(--radius-sm)] border border-[color:color-mix(in_oklab,var(--bad)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--bad)_10%,var(--card))] p-3"
+            className="mb-3 rounded-[var(--radius-sm)] border border-[color:color-mix(in_oklab,var(--bad)_45%,var(--border))] bg-[color:color-mix(in_oklab,var(--bad)_10%,var(--card))] p-3"
           >
             <div className="text-sm font-medium">Microphone permission required</div>
             <div className="mt-1 text-xs text-[color:var(--muted-fg)]">
@@ -462,7 +458,7 @@ export function LiveAudioConsole({
         ) : null}
       </AnimatePresence>
 
-      <div className="mt-4 grid gap-4">
+      <div className="grid gap-4">
         <div className="grid grid-cols-[1fr_auto] items-center gap-3">
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -494,12 +490,12 @@ export function LiveAudioConsole({
 
             <div className="flex min-w-0 items-center gap-2">
               <div className={cn(
-                "inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] border",
+                "inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)]",
                 recording
-                  ? "border-[color:color-mix(in_oklab,var(--accent)_55%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_12%,var(--card))]"
-                  : "border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_84%,transparent)]"
+                  ? "bg-[color:color-mix(in_oklab,var(--accent)_14%,var(--surface-2))] text-[color:var(--accent)]"
+                  : "bg-[color:var(--surface-3)] text-[color:var(--muted-fg)]"
               )}>
-                <Waves className={cn("h-4 w-4", recording ? "text-[color:var(--accent)]" : "text-[color:var(--muted-fg)]")} />
+                <Waves className="h-4 w-4" />
               </div>
               <div className="min-w-0">
                 <AnimatePresence mode="wait" initial={false}>
@@ -526,16 +522,16 @@ export function LiveAudioConsole({
               type="button"
               onClick={() => setMuted((m) => !m)}
               className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] border",
-                "border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_86%,transparent)]",
-                "hover:border-[color:color-mix(in_oklab,var(--accent)_45%,var(--border))]"
+                "inline-flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)]",
+                "bg-[color:var(--surface-3)] text-[color:var(--muted-fg)]",
+                "hover:text-[color:var(--fg)]"
               )}
               aria-label={muted ? "Unmute" : "Mute"}
             >
               {muted ? (
-                <VolumeX className="h-4 w-4 text-[color:var(--muted-fg)]" />
+                <VolumeX className="h-4 w-4" />
               ) : (
-                <Volume2 className="h-4 w-4 text-[color:var(--muted-fg)]" />
+                <Volume2 className="h-4 w-4" />
               )}
             </button>
             <div className="w-28">
@@ -551,6 +547,7 @@ export function LiveAudioConsole({
           </div>
         </div>
 
+        {/* ── Transcript: conversation-style timeline ── */}
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -563,71 +560,60 @@ export function LiveAudioConsole({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-0">
-            <div className="border-r border-[color:var(--border)] px-3 py-2">
-              <div className="mb-2 text-[11px] font-medium text-[color:var(--muted-fg)]">User</div>
-              <div className="space-y-2">
-                <AnimatePresence initial={false} mode="popLayout">
-                  {turns
-                    .filter((t) => t.speaker === "user")
-                    .slice(-6)
-                    .map((t) => (
-                      <motion.div
-                        key={t.turnId}
-                        layout
-                        initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-                        animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                        exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
-                        transition={{ duration: 0.22 }}
-                        className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2"
-                      >
-                        <div className="flex items-center justify-between gap-2 text-[10px] text-[color:var(--muted-fg)]">
-                          <span>{formatTime(t.timestampMs)}</span>
-                          {t.isPartial ? <span>partial</span> : <span>final</span>}
-                        </div>
-                        <div className="mt-1 text-sm leading-snug text-[color:var(--fg)]">{t.text}</div>
-                      </motion.div>
-                    ))}
-                </AnimatePresence>
-                {turns.filter((t) => t.speaker === "user").length === 0 ? (
-                  <div className="text-xs text-[color:var(--muted-fg)]">No user audio yet.</div>
-                ) : null}
-              </div>
-            </div>
+          <div className="space-y-1.5 p-3">
+            <AnimatePresence initial={false} mode="popLayout">
+              {turns.slice(-10).map((t) => (
+                <motion.div
+                  key={t.turnId}
+                  layout
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                  exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+                  transition={{ duration: 0.22 }}
+                  className={cn(
+                    "flex gap-2",
+                    t.speaker === "user" ? "flex-row-reverse" : "flex-row"
+                  )}
+                >
+                  {/* Speaker indicator */}
+                  <div
+                    className={cn(
+                      "mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
+                      t.speaker === "user"
+                        ? "bg-[color:color-mix(in_oklab,var(--fg)_16%,var(--surface-3))] text-[color:var(--fg)]"
+                        : "bg-[color:color-mix(in_oklab,var(--accent)_18%,var(--surface-3))] text-[color:var(--accent)]"
+                    )}
+                  >
+                    {t.speaker === "user" ? "U" : "A"}
+                  </div>
 
-            <div className="px-3 py-2">
-              <div className="mb-2 text-[11px] font-medium text-[color:var(--muted-fg)]">Agent</div>
-              <div className="space-y-2">
-                <AnimatePresence initial={false} mode="popLayout">
-                  {turns
-                    .filter((t) => t.speaker === "agent")
-                    .slice(-6)
-                    .map((t) => (
-                      <motion.div
-                        key={t.turnId}
-                        layout
-                        initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-                        animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                        exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
-                        transition={{ duration: 0.22 }}
-                        className="rounded-[var(--radius-sm)] border border-[color:color-mix(in_oklab,var(--accent)_18%,var(--border))] bg-[color:color-mix(in_oklab,var(--accent)_6%,var(--card))] p-2"
-                      >
-                        <div className="flex items-center justify-between gap-2 text-[10px] text-[color:var(--muted-fg)]">
-                          <span>{formatTime(t.timestampMs)}</span>
-                          {t.isPartial ? <span>partial</span> : <span>final</span>}
-                        </div>
-                        <div className="mt-1 text-sm leading-snug text-[color:var(--fg)]">{t.text}</div>
-                      </motion.div>
-                    ))}
-                </AnimatePresence>
-                {turns.filter((t) => t.speaker === "agent").length === 0 ? (
-                  <div className="text-xs text-[color:var(--muted-fg)]">Agent response appears here.</div>
-                ) : null}
+                  {/* Message bubble */}
+                  <div
+                    className={cn(
+                      "max-w-[85%] rounded-[var(--radius-sm)] px-2.5 py-1.5",
+                      t.speaker === "user"
+                        ? "bg-[color:color-mix(in_oklab,var(--fg)_8%,var(--surface-3))]"
+                        : "bg-[color:color-mix(in_oklab,var(--accent)_8%,var(--surface-3))]"
+                    )}
+                  >
+                    <div className="text-sm leading-snug text-[color:var(--fg)]">{t.text}</div>
+                    <div className="mt-0.5 text-[10px] text-[color:var(--muted-fg)]">
+                      {formatTime(t.timestampMs)}
+                      {t.isPartial ? " · partial" : ""}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {turns.length === 0 ? (
+              <div className="py-4 text-center text-xs text-[color:var(--muted-fg)]">
+                Press Start to begin the conversation.
               </div>
-            </div>
+            ) : null}
           </div>
         </motion.div>
 
+        {/* ── Debug panel: simple key-value list ── */}
         <AnimatePresence initial={false}>
           {debugOpen ? (
             <motion.div
@@ -635,24 +621,21 @@ export function LiveAudioConsole({
               animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
               exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
               transition={{ duration: 0.2 }}
-              className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_84%,transparent)] p-3 text-xs text-[color:var(--muted-fg)]"
+              className="rounded-[var(--radius-sm)] bg-[color:color-mix(in_oklab,var(--surface-3)_80%,transparent)] p-3 text-xs text-[color:var(--muted-fg)]"
             >
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="text-[color:var(--fg)]">Debug</div>
-                  <div className="text-[11px]">backend live</div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                    Audio WebSocket: <span className="text-[color:var(--fg)]">{audioWsState}</span>
+                <div className="mb-2 text-[color:var(--fg)] font-medium">Debug</div>
+                <div className="grid gap-1">
+                  <div className="flex justify-between">
+                    <span>WebSocket</span>
+                    <span className="text-[color:var(--fg)]">{audioWsState}</span>
                   </div>
-                  <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                    Last message: <span className="text-[color:var(--fg)]">{lastMessageType}</span>
+                  <div className="flex justify-between">
+                    <span>Last message</span>
+                    <span className="text-[color:var(--fg)]">{lastMessageType}</span>
                   </div>
-                  <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                    Token expiry (approx): <span className="text-[color:var(--fg)]">{tokenCountdown}</span>
-                  </div>
-                  <div className="rounded-[var(--radius-sm)] border border-[color:var(--border)] bg-[color:color-mix(in_oklab,var(--card)_88%,transparent)] p-2">
-                    Output: <span className="text-[color:var(--fg)]">{muted ? "muted" : `vol ${volume}`}</span>
+                  <div className="flex justify-between">
+                    <span>Output</span>
+                    <span className="text-[color:var(--fg)]">{muted ? "muted" : `vol ${volume}`}</span>
                   </div>
                 </div>
             </motion.div>

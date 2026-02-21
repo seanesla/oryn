@@ -11,15 +11,18 @@ export function TooltipProvider({ children }: { children: React.ReactNode }) {
 export function Tooltip({
   content,
   children,
+  side = "top",
 }: {
   content: React.ReactNode;
   children: React.ReactNode;
+  side?: "top" | "right" | "bottom" | "left";
 }) {
   return (
     <TooltipPrimitive.Root>
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content
+          side={side}
           sideOffset={8}
           className={cn(
             "z-50 max-w-xs rounded-[var(--radius-sm)] border border-[color:var(--border)]",

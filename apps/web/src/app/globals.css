@@ -23,6 +23,7 @@
   --bad: #f198ab;
   --ring: #7e9cff;
 
+  --radius-xs: 0.3rem;
   --radius-sm: 0.56rem;
   --radius-lg: 0.92rem;
 
@@ -450,6 +451,17 @@ html.lenis body {
   display: none;
 }
 
+/* /app pages — dimmed atmospheric background. Toned-down blooms +
+   stronger dark vignette so the page feels deeper and darker. */
+.app-bg-inner::before {
+  opacity: 0.30;
+  filter: blur(52px);
+}
+
+.app-bg-inner::after {
+  opacity: 0.72;
+}
+
 .app-bg-dynamic::after {
   opacity: 0.015;
 }
@@ -589,6 +601,28 @@ html.lenis body {
   border-top: 1px solid color-mix(in oklab, var(--border) 78%, transparent);
 }
 
+/* ── Scrolling ticker marquee ── */
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ── Blinking text cursor ── */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* ── Pulsing accent border for the "analyzing" state ── */
+@keyframes analyzing-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent), 0 0 18px -4px color-mix(in oklab, var(--accent) 20%, transparent); }
+  50%       { box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 60%, transparent), 0 0 28px -4px color-mix(in oklab, var(--accent) 35%, transparent); }
+}
+
+.analyzing-ring {
+  animation: analyzing-pulse 1.4s ease-in-out infinite;
+}
+
 @keyframes accordion-down {
   from {
     height: 0;
@@ -674,6 +708,41 @@ html.lenis body {
   pointer-events: none;
 }
 
+/* ── Nav active indicator — lighter shine-card for navigation items ── */
+.nav-active-indicator {
+  position: relative;
+  background: color-mix(in oklab, var(--accent) 14%, var(--surface-2));
+  box-shadow: var(--shadow-glow);
+  border-radius: inherit;
+  isolation: isolate;
+}
+
+.nav-active-indicator::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--shine-angle),
+    transparent 0%,
+    color-mix(in oklab, var(--accent) 82%, white) 20%,
+    color-mix(in oklab, var(--accent-2) 82%, white) 46%,
+    transparent 66%,
+    transparent 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  animation: shine-rotate 6s linear infinite;
+  pointer-events: none;
+}
+
 
 
 @media (prefers-reduced-motion: reduce) {
@@ -686,6 +755,10 @@ html.lenis body {
   }
 
   .shine-card::before {
+    animation: none;
+  }
+
+  .nav-active-indicator::before {
     animation: none;
   }
 
