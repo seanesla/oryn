@@ -5,7 +5,7 @@ import { PanelRight } from "lucide-react";
 import type { SessionArtifacts } from "@/lib/contracts";
 
 import { Button } from "@/components/ui/Button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/Sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/Sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { DisagreementMapPanel } from "@/components/map/DisagreementMapPanel";
 import { TracePanel } from "@/components/trace/TracePanel";
@@ -21,6 +21,7 @@ export function DetailDrawer({ session }: { session: SessionArtifacts }) {
         </Button>
       </SheetTrigger>
       <SheetContent>
+        <SheetTitle className="sr-only">Session details</SheetTitle>
         <Tabs defaultValue="map">
           <TabsList>
             <TabsTrigger value="map">Map</TabsTrigger>
