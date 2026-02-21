@@ -26,18 +26,25 @@ steps:
       - .
 
   # ── 2. Build Web image (in parallel) ──
+  #    Resolve the API URL at build time so NEXT_PUBLIC_API_BASE_URL is baked in.
   - id: build-web
     name: gcr.io/cloud-builders/docker
+    entrypoint: bash
     args:
-      - build
-      - -t
-      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_WEB_SERVICE}:$SHORT_SHA
-      - -f
-      - apps/web/Dockerfile
-      - --build-arg
-      - NEXT_PUBLIC_API_BASE_URL=https://${_API_SERVICE}-${PROJECT_NUMBER}.${_REGION}.run.app
-      - .
-    waitFor: ['-']  # run in parallel with build-api
+      - -c
+      - |
+        # Get the stable API service URL from Cloud Run
+        API_URL=$$(gcloud run services describe ${_API_SERVICE} \
+          --project=$PROJECT_ID --region=${_REGION} \
+          --format='value(status.url)' --quiet 2>/dev/null \
+          || echo "https://${_API_SERVICE}-$PROJECT_ID.${_REGION}.run.app")
+        echo "Using API URL: $$API_URL"
+        docker build \
+          -t ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_WEB_SERVICE}:$SHORT_SHA \
+          -f apps/web/Dockerfile \
+          --build-arg NEXT_PUBLIC_API_BASE_URL=$$API_URL \
+          .
+    waitFor: ['-']
 
   # ── 3. Push API image ──
   - id: push-api
@@ -58,20 +65,24 @@ steps:
   # ── 5. Deploy API canary (no traffic) ──
   - id: deploy-api-canary
     name: gcr.io/cloud-builders/gcloud
+    entrypoint: bash
     args:
-      - run
-      - deploy
-      - ${_API_SERVICE}
-      - --project=$PROJECT_ID
-      - --region=${_REGION}
-      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_API_SERVICE}:$SHORT_SHA
-      - --no-traffic
-      - --tag=canary
-      - --service-account=${_SA}@$PROJECT_ID.iam.gserviceaccount.com
-      - --timeout=3600
-      - --allow-unauthenticated
-      - --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=${_REGION},CORS_ORIGIN=https://${_WEB_SERVICE}-${PROJECT_NUMBER}.${_REGION}.run.app
-      - --quiet
+      - -c
+      - |
+        WEB_URL=$$(gcloud run services describe ${_WEB_SERVICE} \
+          --project=$PROJECT_ID --region=${_REGION} \
+          --format='value(status.url)' --quiet 2>/dev/null || echo "")
+        gcloud run deploy ${_API_SERVICE} \
+          --project=$PROJECT_ID \
+          --region=${_REGION} \
+          --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_API_SERVICE}:$SHORT_SHA \
+          --no-traffic \
+          --tag=canary \
+          --service-account=${_SA}@$PROJECT_ID.iam.gserviceaccount.com \
+          --timeout=3600 \
+          --allow-unauthenticated \
+          --set-env-vars="GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=${_REGION},CORS_ORIGIN=$$WEB_URL" \
+          --quiet
     waitFor: ['push-api']
 
   # ── 6. Deploy Web canary (no traffic) ──
@@ -92,29 +103,46 @@ steps:
     waitFor: ['push-web']
 
   # ── 7. Health-check API canary ──
+  #    Use gcloud to resolve the tagged canary URL, then curl it.
   - id: healthcheck-api
-    name: gcr.io/cloud-builders/curl
+    name: gcr.io/cloud-builders/gcloud
+    entrypoint: bash
     args:
-      - -sSf
-      - --retry
-      - '4'
-      - --retry-delay
-      - '5'
-      - --retry-all-errors
-      - https://canary---${_API_SERVICE}-${PROJECT_NUMBER}.${_REGION}.run.app/health
+      - -c
+      - |
+        CANARY_URL=$$(gcloud run services describe ${_API_SERVICE} \
+          --project=$PROJECT_ID --region=${_REGION} \
+          --format='value(status.traffic.url)' --quiet \
+          | tr ';' '\n' | grep canary | head -1)
+        if [ -z "$$CANARY_URL" ]; then
+          echo "No canary tag URL found, using main URL"
+          CANARY_URL=$$(gcloud run services describe ${_API_SERVICE} \
+            --project=$PROJECT_ID --region=${_REGION} \
+            --format='value(status.url)' --quiet)
+        fi
+        echo "Health-checking API at: $$CANARY_URL/health"
+        curl -sSf --retry 4 --retry-delay 5 --retry-all-errors "$$CANARY_URL/health"
     waitFor: ['deploy-api-canary']
 
   # ── 8. Health-check Web canary ──
   - id: healthcheck-web
-    name: gcr.io/cloud-builders/curl
+    name: gcr.io/cloud-builders/gcloud
+    entrypoint: bash
     args:
-      - -sSf
-      - --retry
-      - '4'
-      - --retry-delay
-      - '5'
-      - --retry-all-errors
-      - https://canary---${_WEB_SERVICE}-${PROJECT_NUMBER}.${_REGION}.run.app/
+      - -c
+      - |
+        CANARY_URL=$$(gcloud run services describe ${_WEB_SERVICE} \
+          --project=$PROJECT_ID --region=${_REGION} \
+          --format='value(status.traffic.url)' --quiet \
+          | tr ';' '\n' | grep canary | head -1)
+        if [ -z "$$CANARY_URL" ]; then
+          echo "No canary tag URL found, using main URL"
+          CANARY_URL=$$(gcloud run services describe ${_WEB_SERVICE} \
+            --project=$PROJECT_ID --region=${_REGION} \
+            --format='value(status.url)' --quiet)
+        fi
+        echo "Health-checking Web at: $$CANARY_URL/"
+        curl -sSf --retry 4 --retry-delay 5 --retry-all-errors "$$CANARY_URL/"
     waitFor: ['deploy-web-canary']
 
   # ── 9. Promote API — shift 100% traffic ──
