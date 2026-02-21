@@ -25,26 +25,45 @@ steps:
       - apps/api/Dockerfile
       - .
 
-  # ── 2. Build Web image (in parallel) ──
-  #    Resolve the API URL at build time so NEXT_PUBLIC_API_BASE_URL is baked in.
+  # ── 2a. Resolve API URL using gcloud ──
+  #    Must run in a gcloud image so the CLI is available.
+  #    Writes the URL to /workspace/.api_url for the next step to consume.
+  #    Fails the build immediately if the API service cannot be found — prevents
+  #    a broken web image from being deployed with a guessed/wrong URL.
+  - id: resolve-api-url
+    name: gcr.io/cloud-builders/gcloud
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        API_URL=$$(gcloud run services describe ${_API_SERVICE} \
+          --project=$PROJECT_ID --region=${_REGION} \
+          --format='value(status.url)' --quiet)
+        if [ -z "$$API_URL" ]; then
+          echo "ERROR: could not resolve URL for Cloud Run service '${_API_SERVICE}'. Aborting."
+          exit 1
+        fi
+        echo "Resolved API URL: $$API_URL"
+        echo -n "$$API_URL" > /workspace/.api_url
+    waitFor: ['-']
+
+  # ── 2b. Build Web image ──
+  #    Reads the API URL written by resolve-api-url from /workspace/.api_url
+  #    and bakes it into the Next.js client bundle at build time.
   - id: build-web
     name: gcr.io/cloud-builders/docker
     entrypoint: bash
     args:
       - -c
       - |
-        # Get the stable API service URL from Cloud Run
-        API_URL=$$(gcloud run services describe ${_API_SERVICE} \
-          --project=$PROJECT_ID --region=${_REGION} \
-          --format='value(status.url)' --quiet 2>/dev/null \
-          || echo "https://${_API_SERVICE}-$PROJECT_ID.${_REGION}.run.app")
+        API_URL=$$(cat /workspace/.api_url)
         echo "Using API URL: $$API_URL"
         docker build \
           -t ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_WEB_SERVICE}:$SHORT_SHA \
           -f apps/web/Dockerfile \
           --build-arg NEXT_PUBLIC_API_BASE_URL=$$API_URL \
           .
-    waitFor: ['-']
+    waitFor: ['resolve-api-url']
 
   # ── 3. Push API image ──
   - id: push-api

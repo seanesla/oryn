@@ -106,18 +106,38 @@ A Cloud Build trigger `deploy-on-push-main` is configured on GCP. It fires on ev
 
 **How it works (canary rollback flow):**
 
-1. Builds both Docker images from `apps/api/Dockerfile` and `apps/web/Dockerfile`.
-2. Deploys both to Cloud Run with `--no-traffic` (new revision receives zero users).
-3. Health-checks the new revision at its canary URL.
-4. If checks pass, shifts 100% traffic to the new revision.
-5. If checks fail, the build step exits non-zero, Cloud Build marks it failed, and the previous revision keeps serving — automatic rollback with zero downtime.
+1. Builds both Docker images from `apps/api/Dockerfile` and `apps/web/Dockerfile` (in parallel).
+2. Pushes both images to Artifact Registry.
+3. Deploys both to Cloud Run with `--no-traffic` and `--tag=canary` (new revision receives zero users).
+4. Health-checks the API canary at `/health` and the web canary at `/`.
+5. If checks pass, shifts 100% traffic to the new revision via `update-traffic --to-latest`.
+6. If checks fail, the build step exits non-zero, Cloud Build marks it failed, and the previous revision keeps serving — automatic rollback with zero downtime.
 
 **Required file:** `cloudbuild.yaml` at the repo root. Before committing, verify these substitution variables match your Cloud Run setup:
 
 - `_REGION` — your Cloud Run region (e.g. `us-central1`).
 - `_WEB_SERVICE` / `_API_SERVICE` — your Cloud Run service names (default `oryn-web` / `oryn-api`).
+- `_REPO` — Artifact Registry repo name (default `oryn`).
+- `_SA` — service account name prefix (default `oryn-cloudrun`).
 
-**IAM prerequisite:** The `oryn-cloudrun` service account must have the **Cloud Run Developer** role. Verify in IAM & Admin > IAM; add if missing.
+**IAM roles required on the `oryn-cloudrun` service account:**
+
+- `roles/run.developer` — deploy revisions and shift traffic.
+- `roles/artifactregistry.writer` — push container images.
+- `roles/artifactregistry.reader` — pull images at runtime.
+- `roles/iam.serviceAccountUser` — attach itself to Cloud Run revisions.
+- `roles/cloudbuild.builds.editor` — write build logs.
+- `roles/logging.logWriter` — write build logs.
+- `roles/aiplatform.user` — call Vertex AI / Gemini at runtime.
+
+### Live URLs and custom domain
+
+- **Production web:** https://oryn.seanesla.dev (custom domain via Cloud Run domain mapping).
+- **Production API:** https://oryn-api-s7x67kchsa-uc.a.run.app
+- **GCP project:** `gen-lang-client-0607802696`
+- **Region:** `us-central1`
+
+The custom domain `oryn.seanesla.dev` is a CNAME → `ghs.googlehosted.com` (DNS-only mode in Cloudflare, no proxy). Google manages the SSL certificate automatically via the Cloud Run domain mapping. If the cert ever needs re-provisioning, ensure the Cloudflare proxy is **off** (gray cloud) so Google can verify the domain.
 
 ## Style and conventions
 
