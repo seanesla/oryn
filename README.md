@@ -2,7 +2,7 @@
 
 **oryn** is an AI co-reading assistant built for the Gemini Live Agent Challenge. Paste a URL to any article, paper, or transcript — oryn reads it alongside you, surfaces evidence cards, flags disagreements, and suggests what to read next, all while you talk to it out loud in real time.
 
-**Live demo:** https://oryn-web-s7x67kchsa-uc.a.run.app
+**Live demo:** https://oryn.seanesla.dev
 
 ## How it works
 
