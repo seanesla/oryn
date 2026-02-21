@@ -200,7 +200,7 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
     const origin = (req.headers.origin as string | undefined) ?? "";
     if (origin) {
       const allow = [
-        process.env.CORS_ORIGIN,
+        ...(process.env.CORS_ORIGIN?.split(",").map((s) => s.trim()) ?? []),
         "http://localhost:3000",
         "http://127.0.0.1:3000",
       ].filter(Boolean);

@@ -30,7 +30,7 @@ export async function buildServer() {
       if (!origin) return cb(null, true);
 
       const allow = [
-        process.env.CORS_ORIGIN,
+        ...(process.env.CORS_ORIGIN?.split(",").map((s) => s.trim()) ?? []),
         "http://localhost:3000",
         "http://127.0.0.1:3000",
       ].filter(Boolean);

@@ -100,7 +100,8 @@ steps:
           --service-account=${_SA}@$PROJECT_ID.iam.gserviceaccount.com \
           --timeout=3600 \
           --allow-unauthenticated \
-          --set-env-vars="GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=${_REGION},CORS_ORIGIN=$$WEB_URL" \
+          --set-env-vars="GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=${_REGION}" \
+          --set-env-vars="CORS_ORIGIN=https://oryn.seanesla.dev,$$WEB_URL" \
           --quiet
     waitFor: ['push-api']
 
