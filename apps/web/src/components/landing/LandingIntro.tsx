@@ -69,10 +69,18 @@ export function LandingIntro({ onComplete }: { onComplete: () => void }) {
       utils.set(glow, { opacity: 0 });
       utils.set(chars, { opacity: 0, translateY: 20 });
 
-      /* Create drawables for stroke animation */
+      /* Create drawables for stroke animation.
+         createDrawable sets stroke-dasharray/dashoffset so the strokes
+         start fully hidden at draw "0 0". Now that the strokes are
+         geometrically hidden we can reveal the elements (opacity → 1)
+         without any visible flash. */
       const outerDrawable = svg.createDrawable(outerRing);
       const leftDrawable = svg.createDrawable(lensLeft);
       const rightDrawable = svg.createDrawable(lensRight);
+
+      utils.set(outerRing, { opacity: 1 });
+      utils.set(lensLeft, { opacity: 1 });
+      utils.set(lensRight, { opacity: 1 });
 
       /* ── Build master timeline ── */
       const tl = createTimeline({
@@ -241,7 +249,9 @@ export function LandingIntro({ onComplete }: { onComplete: () => void }) {
                   </clipPath>
                 </defs>
 
-                {/* Outer ring — stroke-drawn first */}
+                {/* Outer ring — stroke-drawn first.
+                     opacity: 0 prevents a static flash before anime.js
+                     loads and sets up stroke-dasharray for the draw anim. */}
                 <ellipse
                   id="intro-outer-ring"
                   cx="248.89" cy="246.832"
@@ -249,6 +259,7 @@ export function LandingIntro({ onComplete }: { onComplete: () => void }) {
                   fill="none"
                   stroke="url(#intro-grad-ring)"
                   strokeWidth="4"
+                  opacity={0}
                   style={{ transformOrigin: "248.89px 246.832px" }}
                 />
 
@@ -262,7 +273,7 @@ export function LandingIntro({ onComplete }: { onComplete: () => void }) {
                   opacity={0}
                 />
 
-                {/* Left inner ring */}
+                {/* Left inner ring — hidden until anime.js is ready */}
                 <ellipse
                   id="intro-lens-left"
                   cx="161.802" cy="246.832"
@@ -270,9 +281,10 @@ export function LandingIntro({ onComplete }: { onComplete: () => void }) {
                   fill="none"
                   stroke="#fff"
                   strokeWidth="4.785"
+                  opacity={0}
                 />
 
-                {/* Right inner ring */}
+                {/* Right inner ring — hidden until anime.js is ready */}
                 <ellipse
                   id="intro-lens-right"
                   cx="335.978" cy="246.832"
@@ -280,6 +292,7 @@ export function LandingIntro({ onComplete }: { onComplete: () => void }) {
                   fill="none"
                   stroke="#fff"
                   strokeWidth="4.785"
+                  opacity={0}
                 />
               </svg>
             </div>

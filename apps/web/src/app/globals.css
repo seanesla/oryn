@@ -181,9 +181,14 @@ html.lenis body {
  * On some displays subpixel rounding can reveal faint seams at spacer edges
  * while pinned elements are transformed. Clipping the spacer keeps the
  * landing flow visually continuous.
+ *
+ * !important is required because GSAP sets overflow:visible inline on the
+ * pin-spacer element, which would otherwise override this rule. Without
+ * clipping, the natural-flow ghost of a position:fixed pinned section can
+ * peek out at the bottom of the spacer.
  */
 .pin-spacer {
-  overflow: hidden;
+  overflow: hidden !important;
 }
 
 /* Subtle readability veil over the sticky cosmic stage (neutral, no accent gradients). */

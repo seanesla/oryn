@@ -188,13 +188,17 @@ export function UseCasesSection() {
            start: "top top",
            end: () => "+=" + window.innerHeight * 2.0,
            pin: true,
-           scrub: true,
+           scrub: 0.6,
            invalidateOnRefresh: true,
          },
        });
 
+      /* ── Lead-in: pinned but calm ── */
+      tl.to({}, { duration: 0.08 });
+      tl.addLabel("in");
+
       /* ── Entrance: staggered line reveal + content fade ── */
-      tl.to(label, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power3.out" }, 0)
+      tl.to(label, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power3.out" }, "in")
         .to(
           lines,
           {
@@ -204,14 +208,14 @@ export function UseCasesSection() {
             duration: 0.4,
             ease: "back.out(1.5)",
           },
-          0.04,
+          "in+=0.04",
         )
-        .to(body, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, 0.14)
-        .to(nav, { autoAlpha: 1, y: 0, duration: 0.18, ease: "power3.out" }, 0.2)
-        .to(contentWrap, { autoAlpha: 1, y: 0, duration: 0.2, ease: "power3.out" }, 0.26)
+        .to(body, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, "in+=0.14")
+        .to(nav, { autoAlpha: 1, y: 0, duration: 0.18, ease: "power3.out" }, "in+=0.2")
+        .to(contentWrap, { autoAlpha: 1, y: 0, duration: 0.2, ease: "power3.out" }, "in+=0.26")
 
         /* ── Tab cycling: scroll-driven ── */
-        .addLabel("policy", 0.36)
+        .addLabel("policy", "in+=0.36")
         .call(() => switchToTab(0), [], "policy")
 
         .to({}, { duration: 0.08 })
@@ -256,7 +260,7 @@ export function UseCasesSection() {
       <div className="relative mx-auto w-full max-w-[1680px] px-4 py-20 sm:px-6 lg:px-10">
         <div data-use-inner className="relative z-10">
           <div data-use-label className="section-label">
-            Use cases
+            Use Cases
           </div>
 
           <h2

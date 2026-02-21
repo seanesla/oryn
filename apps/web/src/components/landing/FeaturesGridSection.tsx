@@ -83,13 +83,17 @@ export function FeaturesGridSection() {
           start: "top top",
           end: () => "+=" + window.innerHeight * 2.6,
           pin: true,
-          scrub: true,
+          scrub: 0.6,
           invalidateOnRefresh: true,
         },
       });
 
+      /* ── Lead-in: pinned but calm ── */
+      tl.to({}, { duration: 0.08 });
+      tl.addLabel("in");
+
       /* ── Entrance: word-spring headline + cascade blocks ── */
-      tl.to(label, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power3.out" }, 0)
+      tl.to(label, { autoAlpha: 1, y: 0, duration: 0.12, ease: "power3.out" }, "in")
         .to(
           words,
           {
@@ -100,12 +104,12 @@ export function FeaturesGridSection() {
             duration: 0.28,
             ease: "back.out(2)",
           },
-          0.04,
+          "in+=0.04",
         )
-        .to(body, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, 0.14)
-        .to(blocks[0], { autoAlpha: 1, x: 0, y: 0, duration: 0.22, ease: "power3.out" }, 0.2)
-        .to(blocks[1], { autoAlpha: 1, x: 0, y: 0, duration: 0.22, ease: "power3.out" }, 0.27)
-        .to(blocks[2], { autoAlpha: 1, x: 0, y: 0, duration: 0.22, ease: "power3.out" }, 0.34)
+        .to(body, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, "in+=0.14")
+        .to(blocks[0], { autoAlpha: 1, x: 0, y: 0, duration: 0.22, ease: "power3.out" }, "in+=0.2")
+        .to(blocks[1], { autoAlpha: 1, x: 0, y: 0, duration: 0.22, ease: "power3.out" }, "in+=0.27")
+        .to(blocks[2], { autoAlpha: 1, x: 0, y: 0, duration: 0.22, ease: "power3.out" }, "in+=0.34")
 
         /* ── Hold: let everything breathe ── */
         .to({}, { duration: 0.06 })
@@ -157,7 +161,7 @@ export function FeaturesGridSection() {
       <div className="relative mx-auto w-full max-w-[1680px] px-4 py-20 sm:px-6 lg:px-10">
         <div className="relative z-10">
           <div data-feat-label className="section-label">
-            Why teams use it
+            Features
           </div>
 
           <h2

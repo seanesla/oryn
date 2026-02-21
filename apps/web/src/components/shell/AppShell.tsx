@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/Tooltip";
 import { enterTransition } from "@/lib/motion";
 
 import { LandingIntro } from "@/components/landing/LandingIntro";
+import { LandingDotNav } from "@/components/landing/LandingDotNav";
 import { LandingStickyBackgroundStage } from "@/components/landing/LandingStickyBackgroundStage";
 import { GsapLenisProvider } from "@/components/landing/GsapLenisProvider";
 import { AnimatedBackground } from "@/components/shell/AnimatedBackground";
@@ -21,9 +22,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [introComplete, setIntroComplete] = useState(!isLanding || Boolean(shouldReduceMotion));
   const handleIntroComplete = useCallback(() => setIntroComplete(true), []);
 
+  // Lock body scroll while the intro animation is playing so the user
+  // cannot scroll through the landing page behind the overlay.
+  useEffect(() => {
+    if (!isLanding || introComplete) return;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isLanding, introComplete]);
+
+  // On page load / refresh, disable the browser's automatic scroll
+  // restoration and force scroll back to the top. Without this the
+  // browser remembers the previous scroll offset and restores it.
+  useEffect(() => {
+    if (!isLanding) return;
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+    window.scrollTo(0, 0);
+  }, [isLanding]);
+
   const shellContent = (
     <div className="relative z-10">
       {!isLanding ? <TopBar /> : null}
+      {isLanding ? <LandingDotNav /> : null}
       {isLanding ? (
         <main className="relative w-full">
           <AnimatePresence mode="wait" initial={false}>

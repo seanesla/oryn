@@ -88,24 +88,28 @@ export function HowItWorksSection() {
           start: "top top",
           end: () => "+=" + window.innerHeight * 2.2,
           pin: true,
-          scrub: true,
+          scrub: 0.6,
           invalidateOnRefresh: true,
         },
       });
 
+      /* ── Lead-in: pinned but calm ── */
+      tl.to({}, { duration: 0.08 });
+      tl.addLabel("in");
+
       /* ── Entrance: left column slides in, headline types ── */
-      tl.to(leftCol, { x: 0, autoAlpha: 1, duration: 0.2, ease: "power3.out" }, 0)
-        .to(label, { autoAlpha: 1, y: 0, duration: 0.14, ease: "power3.out" }, 0.06)
+      tl.to(leftCol, { x: 0, autoAlpha: 1, duration: 0.2, ease: "power3.out" }, "in")
+        .to(label, { autoAlpha: 1, y: 0, duration: 0.14, ease: "power3.out" }, "in+=0.06")
         .to(
           split.chars,
           { autoAlpha: 1, stagger: 0.015, duration: 0.35, ease: "none" },
-          0.1,
+          "in+=0.1",
         )
-        .to(cursor, { autoAlpha: 1, duration: 0.06 }, 0.12)
-        .to(body, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, 0.22)
+        .to(cursor, { autoAlpha: 1, duration: 0.06 }, "in+=0.12")
+        .to(body, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, "in+=0.22")
 
         /* ── Step 1: number circle-reveals, text slides in ── */
-        .addLabel("step1", 0.32)
+        .addLabel("step1", "in+=0.32")
         .to(
           stepNums[0],
           { clipPath: "circle(100% at 50% 50%)", duration: 0.18, ease: "power3.out" },
@@ -203,7 +207,7 @@ export function HowItWorksSection() {
           {/* ── Left: headline + body ── */}
           <div data-how-left className="min-w-0">
             <div data-how-label className="section-label">
-              How a session works
+              How It Works
             </div>
 
             <div className="mt-7 flex items-baseline gap-2">

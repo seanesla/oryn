@@ -146,20 +146,37 @@ export function HeroSection() {
           scrollTrigger: {
             trigger: sectionEl,
             start: "top top",
-            end: () => "+=" + window.innerHeight * 2,
+            end: () => "+=" + window.innerHeight * 3,
             pin: true,
-            scrub: true,
+            scrub: 0.6,
             anticipatePin: 1,
             invalidateOnRefresh: true,
+            onLeave: () => {
+              // Instantly hide the hero when the pin releases so its
+              // partially-faded content (scrub lag) can't overlap with
+              // the features section scrolling in from below.
+              sectionEl.style.visibility = "hidden";
+            },
+            onEnterBack: () => {
+              sectionEl.style.visibility = "";
+            },
           },
         });
 
         exitTl
-          .to(cue, { autoAlpha: 0, duration: 0.1, ease: "none" }, 0)
-          .to(brand, { y: -220, autoAlpha: 0, duration: 1, ease: "none" }, 0)
-          .to(headline, { y: -200, autoAlpha: 0, scale: 0.96, duration: 1, ease: "none" }, 0)
-          .to(subtitle, { y: -140, autoAlpha: 0, scale: 0.98, duration: 1, ease: "none" }, 0)
-          .to(ctas, { y: -100, autoAlpha: 0, duration: 1, ease: "none" }, 0);
+          /* ── Hold-in: hero stays visible, only scroll cue fades ── */
+          .to(cue, { autoAlpha: 0, duration: 0.15, ease: "none" }, 0)
+          .to({}, { duration: 0.2 })
+
+          /* ── Exit: parallax drift / dissolve ── */
+          .addLabel("exit")
+          .to(brand, { y: -220, autoAlpha: 0, duration: 0.5, ease: "none" }, "exit")
+          .to(headline, { y: -200, autoAlpha: 0, scale: 0.96, duration: 0.5, ease: "none" }, "exit")
+          .to(subtitle, { y: -140, autoAlpha: 0, scale: 0.98, duration: 0.5, ease: "none" }, "exit")
+          .to(ctas, { y: -100, autoAlpha: 0, duration: 0.5, ease: "none" }, "exit")
+
+          /* ── Hold-out: blank pause before next section pins ── */
+          .to({}, { duration: 0.2 });
 
         exitTlRef.current = exitTl;
       });

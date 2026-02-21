@@ -22,10 +22,12 @@ export function ClosingSection() {
       if (reducedMotion) return;
       if (!sectionRef.current) return;
 
-      const logo = sectionRef.current.querySelector<HTMLElement>("[data-closing-logo]");
-      const headline = sectionRef.current.querySelector<HTMLElement>("[data-closing-headline]");
-      const body = sectionRef.current.querySelector<HTMLElement>("[data-closing-body]");
-      const ctas = sectionRef.current.querySelector<HTMLElement>("[data-closing-ctas]");
+      const sectionEl = sectionRef.current;
+
+      const logo = sectionEl.querySelector<HTMLElement>("[data-closing-logo]");
+      const headline = sectionEl.querySelector<HTMLElement>("[data-closing-headline]");
+      const body = sectionEl.querySelector<HTMLElement>("[data-closing-body]");
+      const ctas = sectionEl.querySelector<HTMLElement>("[data-closing-ctas]");
 
       if (!logo || !headline || !body || !ctas) return;
 
@@ -33,7 +35,7 @@ export function ClosingSection() {
       const split = new SplitText(headline, { type: "chars" });
       const chars = (split.chars ?? []) as HTMLElement[];
 
-      /* Initial state: fully hidden (matches how other sections start) */
+      /* Initial state: fully hidden */
       gsap.set(logo, { autoAlpha: 0, scale: 0.9, y: 20 });
       gsap.set(headline, {
         scale: 1.12,
@@ -45,31 +47,67 @@ export function ClosingSection() {
       gsap.set(body, { autoAlpha: 0, y: 20 });
       gsap.set(ctas, { autoAlpha: 0, y: 20 });
 
-      // No pin — this is the last section. Content animates in as it scrolls
-      // into view and stays put. Pinning would create a duplicate because
-      // the pin-spacer repositions the section after release.
+      // Pinned scrub — same pattern as every other section.
+      //
+      // Edge-case for the last section: because maxScroll === pinEnd,
+      // GSAP can release the pin at the exact boundary (subpixel rounding,
+      // Lenis lerp overshoot, End key). When that happens the section
+      // repositions inside the pin-spacer and .pin-spacer overflow:hidden
+      // clips it → "content vanishes then reappears" (the duplicate).
+      //
+      // Fix: onLeave immediately re-fixes the section to the viewport so
+      // the release is invisible. onEnterBack clears the override so GSAP
+      // can manage the pin normally when scrolling back up.
       const tl = gsap.timeline({
         defaults: { ease: "none" },
         scrollTrigger: {
-          trigger: sectionRef.current,
-          start: "top 80%",
-          end: "center center",
-          scrub: true,
+          trigger: sectionEl,
+          start: "top top",
+          end: () => "+=" + window.innerHeight * 0.6,
+          pin: true,
+          scrub: 0.6,
           invalidateOnRefresh: true,
+          onLeave: () => {
+            // Pin just released — force section back to fixed so the
+            // reposition inside pin-spacer is never visible.
+            // IMPORTANT: also clear transform because GSAP applies a
+            // translate() to position the element at its natural scroll
+            // offset after pin release. Without clearing it, the fixed
+            // section is shifted down and only the logo peeks into view.
+            gsap.set(sectionEl, {
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100%",
+              zIndex: 10,
+              transform: "none",
+            });
+          },
+          onEnterBack: () => {
+            // Scrolling back into pin range — clear overrides so GSAP
+            // can manage the pin normally.
+            gsap.set(sectionEl, {
+              clearProps: "position,top,left,width,zIndex,transform",
+            });
+          },
         },
       });
 
-      /* ── Entrance: logo, headline chars, body, CTAs ── */
+      /* ── Lead-in: pinned but calm ── */
+      tl.to({}, { duration: 0.08 });
+      tl.addLabel("in");
+
+      /* ── Entrance ── */
       tl.to(
           logo,
           {
             autoAlpha: 1,
             scale: 1,
             y: 0,
-            duration: 0.2,
+            duration: 0.25,
             ease: "back.out(1.4)",
           },
-          0,
+          "in",
         )
         .to(
           headline,
@@ -77,10 +115,10 @@ export function ClosingSection() {
             scale: 1,
             autoAlpha: 1,
             filter: "blur(0px)",
-            duration: 0.3,
+            duration: 0.35,
             ease: "power3.out",
           },
-          0.04,
+          "in+=0.06",
         )
         .to(
           chars,
@@ -88,16 +126,23 @@ export function ClosingSection() {
             autoAlpha: 1,
             scale: 1,
             stagger: { each: 0.015, from: "random" },
-            duration: 0.24,
+            duration: 0.28,
             ease: "back.out(1.7)",
           },
-          0.08,
+          "in+=0.1",
         )
-        .to(body, { autoAlpha: 1, y: 0, duration: 0.18, ease: "power3.out" }, 0.34)
-        .to(ctas, { autoAlpha: 1, y: 0, duration: 0.16, ease: "power3.out" }, 0.42);
+        .to(body, { autoAlpha: 1, y: 0, duration: 0.2, ease: "power3.out" }, "in+=0.4")
+        .to(ctas, { autoAlpha: 1, y: 0, duration: 0.18, ease: "power3.out" }, "in+=0.52")
+
+        /* ── Hold: content stays visible ── */
+        .to({}, { duration: 0.28 });
 
       return () => {
         split.revert();
+        // Clean up the forced fixed positioning if it was applied
+        gsap.set(sectionEl, {
+          clearProps: "position,top,left,width,zIndex,transform",
+        });
       };
     },
     { scope: sectionRef },
