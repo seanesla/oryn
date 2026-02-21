@@ -8,15 +8,16 @@ import { ArrowRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 import { SplitText, gsap, useGSAP, registerGsapPlugins } from "@/lib/gsap";
+import { hasSeenIntro } from "@/lib/intro-state";
 
 registerGsapPlugins();
 
 /**
- * Loading animation takes ~3.2s. We delay the hero entrance so it starts
- * as the overlay begins fading (~2.4s in), creating a seamless handoff:
- * logo ring expands → overlay fades → hero text erupts from center.
+ * Delay for syncing the hero entrance with the loading animation on first load.
+ * Loading animation takes ~3.2s; hero starts at ~2.4s as the overlay fades.
+ * When navigating back from /app, the intro has already played so we use 0.
  */
-const INTRO_DELAY = 2.4;
+const FIRST_LOAD_DELAY = 2.4;
 
 /* Brand palette for the accent-word color shimmer (matches logo gradient) */
 const SHIMMER_COLORS = ["#818cf8", "#67e8f9", "#a78bfa", "#818cf8"];
@@ -65,10 +66,14 @@ export function HeroSection() {
         gsap.set(accentChars, { color: "#818cf8" });
       }
 
+      /* When returning from /app the intro overlay is gone — start immediately.
+         On a fresh page load, delay to sync with the overlay fade-out. */
+      const introDelay = hasSeenIntro() ? 0 : FIRST_LOAD_DELAY;
+
       /* ── Entrance timeline — delayed to sync with loading animation exit ── */
       const intro = gsap.timeline({
         defaults: { ease: "power3.out" },
-        delay: INTRO_DELAY,
+        delay: introDelay,
       });
 
       /* 1. Brand wordmark — scale-in */
@@ -125,7 +130,7 @@ export function HeroSection() {
           keyframes: SHIMMER_COLORS.map((c) => ({ color: c, duration: 1.2 })),
           stagger: { each: 0.08, repeat: -1 },
           ease: "sine.inOut",
-          delay: INTRO_DELAY + 2.5,
+          delay: introDelay + 2.5,
         });
       }
 

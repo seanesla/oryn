@@ -86,7 +86,7 @@ export function ClosingSection() {
 
       const trigger = ScrollTrigger.create({
         trigger: sectionEl,
-        start: "top 15%",
+        start: "top 2px",
         once: true,
         onEnter: () => {
           revealTl.play(0);

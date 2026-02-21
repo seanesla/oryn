@@ -122,17 +122,35 @@ function LenisSectionSnap() {
     (target: number) => {
       if (!lenis) return;
 
+      // Clamp to the real scroll limit so we never ask Lenis to scroll
+      // further than the page allows. Without this, Lenis silently clamps
+      // internally and `onComplete` fires at the wrong position.
+      const clamped = Math.min(Math.max(0, target), lenis.limit);
+
       // Increment the token so any in-flight snap's onComplete becomes stale.
       const token = ++snapTokenRef.current;
 
       isSnapping.current = true;
-      snapTargetRef.current = target;
+      snapTargetRef.current = clamped;
       snapStartedAtRef.current = Date.now();
 
-      lenis.scrollTo(target, {
+      lenis.scrollTo(clamped, {
         onComplete: () => {
           // Only clear state if this is still the active snap (token matches).
           if (snapTokenRef.current === token) {
+            // Hard-land on the exact pixel. The animated scrollTo settles
+            // asymptotically and onComplete fires when the gap is < ~0.1px,
+            // meaning window.scrollY (which browsers floor to integers) can
+            // still be 1px short of the section top. The immediate call
+            // costs nothing visually and guarantees the exact integer is set.
+            lenis.scrollTo(clamped, { immediate: true });
+            // Explicitly tell ScrollTrigger to re-evaluate at the new
+            // position. The immediate scrollTo fires a Lenis scroll event
+            // which normally reaches ScrollTrigger via LenisGsapBridge, but
+            // calling update() here guarantees it runs synchronously before
+            // any timer or re-render, so "top top" triggers fire on the
+            // same tick the snap finishes.
+            ScrollTrigger.update();
             isSnapping.current = false;
             snapTargetRef.current = null;
           }
@@ -153,7 +171,15 @@ function LenisSectionSnap() {
       if (!sections.length) return;
 
       const tops = sections
-        .map((el) => el.getBoundingClientRect().top + window.scrollY)
+        .map((el) => {
+          // Math.ceil ensures the snap target is always an integer >= the
+          // fractional document offset of the section. Browsers floor
+          // window.scrollY to integers, so without rounding up a section at
+          // offset 924.3 would have the snap land at scrollY=924 — one pixel
+          // short of GSAP's "top top" threshold of 924.3 — requiring the user
+          // to manually scroll one more pixel to trigger the reveal animation.
+          return Math.ceil(el.getBoundingClientRect().top + window.scrollY);
+        })
         .filter((n) => Number.isFinite(n))
         .sort((a, b) => a - b);
 
@@ -202,7 +228,11 @@ function LenisSectionSnap() {
       }
 
       // Already essentially aligned — nothing to do.
-      if (Math.abs(destination - best) <= 5) return;
+      // Tolerance is intentionally tight (0.5px) so a subpixel gap between
+      // the current scroll position and a section top still triggers a snap.
+      // The old 5px window was wide enough to swallow the rounding error and
+      // leave content stuck invisible because "top top" never fired.
+      if (Math.abs(destination - best) <= 0.5) return;
 
       snapTo(best);
     },

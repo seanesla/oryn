@@ -119,7 +119,7 @@ export function HowItWorksSection() {
 
       const trigger = ScrollTrigger.create({
         trigger: sectionRef.current,
-        start: "top top",
+        start: "top 2px",
         once: true,
         onEnter: () => {
           revealTl.play(0);

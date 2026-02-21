@@ -111,7 +111,10 @@ export function FeaturesGridSection() {
 
       const trigger = ScrollTrigger.create({
         trigger: sectionRef.current,
-        start: "top top",
+        // "top 2px" fires when the section's top is 2px from the viewport
+        // top, giving 2px of subpixel tolerance so a snap that lands 1px
+        // short still fires the reveal during the smooth scroll approach.
+        start: "top 2px",
         once: true,
         onEnter: () => {
           revealTl.play(0);

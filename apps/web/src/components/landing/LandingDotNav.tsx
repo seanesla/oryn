@@ -10,6 +10,7 @@ import {
 import { useLenis } from "lenis/react";
 
 import { cn } from "@/lib/cn";
+import { hasSeenIntro } from "@/lib/intro-state";
 
 /* ─── Config ───────────────────────────────────────────────── */
 
@@ -96,12 +97,14 @@ function Dot({
   label,
   isActive,
   reducedMotion,
+  skipEntranceDelay,
 }: {
   index: number;
   scene: string;
   label: string;
   isActive: boolean;
   reducedMotion: boolean;
+  skipEntranceDelay: boolean;
 }) {
   const lenis = useLenis();
 
@@ -130,7 +133,7 @@ function Dot({
       animate={{ opacity: 1, x: 0 }}
       transition={{
         duration: 0.4,
-        delay: reducedMotion ? 0 : ENTRANCE_DELAY + index * 0.06,
+        delay: reducedMotion || skipEntranceDelay ? 0 : ENTRANCE_DELAY + index * 0.06,
         ease: EASE,
       }}
     >
@@ -198,13 +201,15 @@ export function LandingDotNav() {
   const reducedMotion = Boolean(shouldReduceMotion);
   const activeIndex = useActiveSection();
 
-  /* Delay render until intro animation finishes. */
-  const [visible, setVisible] = useState(reducedMotion);
+  /* Delay render until intro animation finishes.
+     Skip the wait entirely when navigating back from /app — intro already played. */
+  const skipDelay = reducedMotion || hasSeenIntro();
+  const [visible, setVisible] = useState(skipDelay);
   useEffect(() => {
-    if (reducedMotion) return;
+    if (skipDelay) return;
     const timer = setTimeout(() => setVisible(true), ENTRANCE_DELAY * 1000);
     return () => clearTimeout(timer);
-  }, [reducedMotion]);
+  }, [skipDelay]);
 
   if (!visible) return null;
 
@@ -227,6 +232,7 @@ export function LandingDotNav() {
             label={section.label}
             isActive={i === activeIndex}
             reducedMotion={reducedMotion}
+            skipEntranceDelay={skipDelay}
           />
         ))}
       </nav>
