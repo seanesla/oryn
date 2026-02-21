@@ -100,6 +100,25 @@ Unless explicitly changed by newer higher-priority rules, all agents should foll
 
 When touching shell scripts, validate quickly with `bash -n` and keep executable flags.
 
+### Cloud Build CI/CD (live)
+
+A Cloud Build trigger `deploy-on-push-main` is configured on GCP. It fires on every push to `main` in `seanesla/oryn` and uses the `oryn-cloudrun` service account. Build status appears as commit checks on GitHub.
+
+**How it works (canary rollback flow):**
+
+1. Builds both Docker images from `apps/api/Dockerfile` and `apps/web/Dockerfile`.
+2. Deploys both to Cloud Run with `--no-traffic` (new revision receives zero users).
+3. Health-checks the new revision at its canary URL.
+4. If checks pass, shifts 100% traffic to the new revision.
+5. If checks fail, the build step exits non-zero, Cloud Build marks it failed, and the previous revision keeps serving — automatic rollback with zero downtime.
+
+**Required file:** `cloudbuild.yaml` at the repo root. Before committing, verify these substitution variables match your Cloud Run setup:
+
+- `_REGION` — your Cloud Run region (e.g. `us-central1`).
+- `_WEB_SERVICE` / `_API_SERVICE` — your Cloud Run service names (default `oryn-web` / `oryn-api`).
+
+**IAM prerequisite:** The `oryn-cloudrun` service account must have the **Cloud Run Developer** role. Verify in IAM & Admin > IAM; add if missing.
+
 ## Style and conventions
 
 ### TypeScript conventions

@@ -104,17 +104,4 @@ npm test   # run backend tests
 
 ## Deploying to Cloud Run
 
-> Requires a Google Cloud project with billing enabled.
-
-The deploy scripts handle Artifact Registry setup, Cloud Build, and service account permissions automatically. The API is configured with a `3600s` request timeout to support long-running SSE and WebSocket connections.
-
-```bash
-# Deploy API first
-infra/cloudrun/deploy_api.sh YOUR_GCP_PROJECT_ID us-central1
-
-# Then deploy web, passing your API URL
-infra/cloudrun/deploy_web.sh YOUR_GCP_PROJECT_ID https://oryn-api-s7x67kchsa-uc.a.run.app us-central1
-
-# Tear everything down
-infra/cloudrun/cleanup_all.sh YOUR_GCP_PROJECT_ID us-central1
-```
+Deploy scripts are in `infra/cloudrun/`. See `AGENTS.md` for the full deployment guide.

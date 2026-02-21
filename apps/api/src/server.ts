@@ -44,6 +44,7 @@ export async function buildServer() {
   await server.register(websocket);
 
   server.get("/healthz", async () => ({ ok: true }));
+  server.get("/health", async () => ({ ok: true }));
 
   const storeType = (process.env.SESSION_STORE ?? "memory").toLowerCase();
   const store = storeType === "firestore" ? createFirestoreSessionStore() : createMemorySessionStore();
