@@ -9,6 +9,7 @@ import {
   domainFromUrl,
   clamp,
   TTLCache,
+  validateFetchUrl,
 } from "@oryn/tools";
 import type { SearchHit, ExtractedContent } from "@oryn/tools";
 import type { SessionEventBus, SessionStore } from "../core/types";
@@ -226,10 +227,20 @@ export async function runSessionAnalysis(input: {
 
   // 4) Extract from top hits
   const maxCards = 4;
-  const urlsToExtract = uniqByUrl([...r1.hits.slice(0, maxCards), ...r2.hits.slice(0, maxCards)])
+  const candidateUrls = uniqByUrl([...r1.hits.slice(0, maxCards), ...r2.hits.slice(0, maxCards)])
     .map((h) => h.url)
     .filter(Boolean)
     .slice(0, maxCards * 2);
+
+  const urlsToExtract: string[] = [];
+  for (const u of candidateUrls) {
+    try {
+      await validateFetchUrl(u);
+      urlsToExtract.push(u);
+    } catch (err) {
+      logger.warn({ url: u, err }, "skipping URL: SSRF validation failed");
+    }
+  }
 
   const extractedByUrl = new Map<string, ExtractedContent>();
   await mapLimit(urlsToExtract, 4, async (u) => {
