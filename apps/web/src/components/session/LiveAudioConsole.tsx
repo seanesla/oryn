@@ -224,6 +224,41 @@ export function LiveAudioConsole({
     if (ctx) playheadRef.current = ctx.currentTime;
   }
 
+  function stopInputCapture(opts?: { sendStop?: boolean; closeWs?: boolean }) {
+    setRecording(false);
+    recordingRef.current = false;
+
+    try {
+      processorRef.current?.disconnect();
+    } catch {
+      // ignore
+    }
+    processorRef.current = null;
+    inputCtxRef.current?.close().catch(() => {});
+    inputCtxRef.current = null;
+
+    if (opts?.sendStop) {
+      try {
+        wsRef.current?.send(JSON.stringify({ type: "control.stop" }));
+      } catch {
+        // ignore
+      }
+    }
+
+    if (opts?.closeWs) {
+      try {
+        wsRef.current?.close();
+      } catch {
+        // ignore
+      }
+      wsRef.current = null;
+      setAudioWsState("offline");
+    }
+
+    for (const track of streamRef.current?.getTracks() ?? []) track.stop();
+    streamRef.current = null;
+  }
+
   function ensureOutput() {
     if (outputCtxRef.current && outputGainRef.current) return;
     const ctx = new AudioContext();
@@ -313,6 +348,9 @@ export function LiveAudioConsole({
         if (msg.type === "error") {
           const m = (msg as { message?: unknown }).message;
           if (typeof m === "string") setLastError(m);
+
+          // Avoid capturing audio indefinitely when the server can't proceed.
+          if (recordingRef.current) stopInputCapture({ closeWs: true });
         }
         return;
       }
@@ -322,12 +360,14 @@ export function LiveAudioConsole({
       setLastMessageType("ws.error");
       setLastError("WebSocket error (check backend logs)");
       setAudioWsState("reconnecting");
+      if (recordingRef.current) stopInputCapture({ closeWs: true });
     };
 
     ws.onclose = () => {
       setLastMessageType("ws.close");
       setAudioWsState("offline");
       wsRef.current = null;
+      if (recordingRef.current) stopInputCapture();
     };
 
     return ws;
@@ -382,26 +422,7 @@ export function LiveAudioConsole({
       return;
     }
 
-    setRecording(false);
-    recordingRef.current = false;
-
-    try {
-      processorRef.current?.disconnect();
-    } catch {
-      // ignore
-    }
-    processorRef.current = null;
-    inputCtxRef.current?.close().catch(() => {});
-    inputCtxRef.current = null;
-
-    try {
-      wsRef.current?.send(JSON.stringify({ type: "control.stop" }));
-    } catch {
-      // ignore
-    }
-
-    for (const track of streamRef.current?.getTracks() ?? []) track.stop();
-    streamRef.current = null;
+    stopInputCapture({ sendStop: true });
   }
 
   const micStatusColor =
@@ -511,7 +532,13 @@ export function LiveAudioConsole({
                   </motion.div>
                 </AnimatePresence>
                 <div className="text-xs text-[color:var(--muted-fg)]">
-                  {agentSpeaking ? "Barge in to redirect." : "Press Start to speak."}
+                  {interrupting
+                    ? "Interrupting…"
+                    : agentSpeaking
+                      ? "Barge in to redirect."
+                      : recording
+                        ? "Speak now."
+                        : "Press Start to speak."}
                 </div>
               </div>
             </div>
