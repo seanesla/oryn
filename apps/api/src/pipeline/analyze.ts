@@ -15,8 +15,11 @@ import type { SessionEventBus, SessionStore } from "../core/types";
 import { createGenAiClient } from "../genai/client";
 import { readCachedExtraction, writeCachedExtraction } from "../core/storageCache";
 
+let idSeq = 0;
+
 function nowId(prefix: string) {
-  return `${prefix}_${Date.now()}`;
+  idSeq += 1;
+  return `${prefix}_${Date.now()}_${idSeq}`;
 }
 
 // Module-level caches for repeated analyses
@@ -123,6 +126,12 @@ export async function runSessionAnalysis(input: {
       ...prev,
       domain: domainFromUrl(prev.url ?? "") || prev.domain,
       title: prev.title ?? extracted?.title ?? prev.url,
+      pipeline: { ...prev.pipeline, contentExtracted: true },
+    }));
+  } else {
+    // claim-check mode: no URL to fetch — claim text IS the content
+    await update((prev) => ({
+      ...prev,
       pipeline: { ...prev.pipeline, contentExtracted: true },
     }));
   }

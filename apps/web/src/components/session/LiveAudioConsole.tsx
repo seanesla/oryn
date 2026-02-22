@@ -598,7 +598,7 @@ export function LiveAudioConsole({
                   >
                     <div className="text-sm leading-snug text-[color:var(--fg)]">{t.text}</div>
                     <div className="mt-0.5 text-[10px] text-[color:var(--muted-fg)]">
-                      {formatTime(t.timestampMs)}
+                      {formatTime(Math.max(0, t.timestampMs - session.createdAtMs))}
                       {t.isPartial ? " · partial" : ""}
                     </div>
                   </div>

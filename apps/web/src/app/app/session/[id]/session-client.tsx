@@ -9,32 +9,49 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { ChoiceSetPanel } from "@/components/choice/ChoiceSetPanel";
 import { EvidenceCardsPanel } from "@/components/evidence/EvidenceCardsPanel";
 import { LiveAudioConsole } from "@/components/session/LiveAudioConsole";
-import { DetailDrawer } from "@/components/session/DetailDrawer";
+import { DisagreementMapPanel } from "@/components/map/DisagreementMapPanel";
+import { TracePanel } from "@/components/trace/TracePanel";
+import { EpistemicContractPanel } from "@/components/contract/EpistemicContractPanel";
 import { enterTransition } from "@/lib/motion";
 import { useSessionRuntime } from "@/lib/useSessionRuntime";
 import { cn } from "@/lib/cn";
+
+import type { SessionMode } from "@/lib/contracts";
 
 /* ── Pipeline stepper ── */
 
 type StepState = "pending" | "active" | "done";
 
 function PipelineStepper({
+  mode,
   content,
   claims,
   evidence,
 }: {
+  mode: SessionMode;
   content: boolean;
   claims: boolean;
   evidence: boolean; // true = still building
 }) {
-  const steps: Array<{ label: string; state: StepState }> = [
-    { label: "Content", state: content ? "done" : "active" },
-    { label: "Claims", state: claims ? "done" : content ? "active" : "pending" },
-    {
-      label: "Evidence",
-      state: !evidence && claims ? "done" : claims ? "active" : "pending",
-    },
-  ];
+  const isClaimCheck = mode === "claim-check";
+
+  const steps: Array<{ label: string; state: StepState }> = isClaimCheck
+    ? [
+        // claim-check: no content step — the claim text IS the content
+        { label: "Claims", state: claims ? "done" : "active" },
+        {
+          label: "Evidence",
+          state: !evidence && claims ? "done" : claims ? "active" : "pending",
+        },
+      ]
+    : [
+        { label: "Content", state: content ? "done" : "active" },
+        { label: "Claims", state: claims ? "done" : content ? "active" : "pending" },
+        {
+          label: "Evidence",
+          state: !evidence && claims ? "done" : claims ? "active" : "pending",
+        },
+      ];
 
   return (
     <div className="flex items-center gap-0">
@@ -146,7 +163,7 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
           <div className="mt-0.5 truncate text-xs text-[color:var(--muted-fg)]">{subtitle}</div>
         </motion.div>
 
-        {/* Pipeline stepper + Detail Drawer */}
+        {/* Pipeline stepper */}
         <motion.div
           className="flex flex-wrap items-center gap-4"
           initial={shouldReduceMotion ? false : { opacity: 0, y: 10, filter: "blur(6px)" }}
@@ -154,11 +171,11 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
           transition={{ delay: 0.08, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         >
           <PipelineStepper
+            mode={s.mode}
             content={s.pipeline.contentExtracted}
             claims={s.pipeline.claimsExtracted}
             evidence={s.pipeline.evidenceBuilding}
           />
-          <DetailDrawer session={s} />
         </motion.div>
       </div>
 
@@ -175,6 +192,27 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
           <TabsContent value="evidence" className="mt-4 space-y-4">
             <EvidenceCardsPanel session={s} actions={actions} />
             <ChoiceSetPanel session={s} actions={actions} />
+
+            {/* ── Analysis Details (inline, mobile) ── */}
+            <div className="mt-2 text-[10px] uppercase tracking-[0.12em] text-[color:var(--muted-fg)]">Analysis Details</div>
+            <div className="panel-elevated rounded-[0.9rem] p-4">
+              <Tabs defaultValue="map">
+                <TabsList>
+                  <TabsTrigger value="map">Map</TabsTrigger>
+                  <TabsTrigger value="trace">Trace</TabsTrigger>
+                  <TabsTrigger value="contract">Contract</TabsTrigger>
+                </TabsList>
+                <TabsContent value="map" className="mt-4">
+                  <DisagreementMapPanel session={s} />
+                </TabsContent>
+                <TabsContent value="trace" className="mt-4">
+                  <TracePanel session={s} />
+                </TabsContent>
+                <TabsContent value="contract" className="mt-4">
+                  <EpistemicContractPanel session={s} />
+                </TabsContent>
+              </Tabs>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
@@ -202,6 +240,27 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
             <EvidenceCardsPanel session={s} actions={actions} />
           </div>
           <ChoiceSetPanel session={s} actions={actions} />
+
+          {/* ── Analysis Details (inline) ── */}
+          <div className="mt-2 text-[10px] uppercase tracking-[0.12em] text-[color:var(--muted-fg)]">Analysis Details</div>
+          <div className="panel-elevated rounded-[0.9rem] p-4">
+            <Tabs defaultValue="map">
+              <TabsList>
+                <TabsTrigger value="map">Map</TabsTrigger>
+                <TabsTrigger value="trace">Trace</TabsTrigger>
+                <TabsTrigger value="contract">Contract</TabsTrigger>
+              </TabsList>
+              <TabsContent value="map" className="mt-4">
+                <DisagreementMapPanel session={s} />
+              </TabsContent>
+              <TabsContent value="trace" className="mt-4">
+                <TracePanel session={s} />
+              </TabsContent>
+              <TabsContent value="contract" className="mt-4">
+                <EpistemicContractPanel session={s} />
+              </TabsContent>
+            </Tabs>
+          </div>
         </motion.div>
       </div>
     </div>
