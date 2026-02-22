@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Link from "next/link";
 
 import { motion, useReducedMotion } from "motion/react";
 import { Check, Loader2 } from "lucide-react";
@@ -135,9 +136,10 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
   }
 
   if (!s) {
+    const msg = runtime.error ?? "Session not found.";
     return (
       <div className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-16 pt-10 sm:px-8">
-        <div className="panel-elevated rounded-[0.82rem] p-5 text-sm text-[color:var(--fg)]">Session not found.</div>
+        <div className="panel-elevated rounded-[0.82rem] p-5 text-sm text-[color:var(--fg)]">{msg}</div>
       </div>
     );
   }
@@ -147,6 +149,15 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="relative z-10 mx-auto w-full max-w-[1600px] px-3 pb-10 pt-6 sm:px-6">
+      {runtime.error ? (
+        <div className="mb-4 rounded-[0.9rem] border border-[color:color-mix(in_oklab,var(--warn)_55%,var(--border))] bg-[color:color-mix(in_oklab,var(--warn)_12%,var(--surface-2))] p-3 text-sm text-[color:var(--fg)]">
+          {runtime.error}{" "}
+          <Link href="/app/co-reading" className="underline underline-offset-2">
+            Start a new session
+          </Link>
+          .
+        </div>
+      ) : null}
       {/* ── Header ── */}
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         {/* Title + subtitle */}

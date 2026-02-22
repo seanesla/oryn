@@ -11,6 +11,7 @@ import type { Runtime, RuntimeActions } from "@/lib/runtimeTypes";
 export function useSessionRuntime(sessionId: string) {
   const [runtime, setRuntime] = useState<Runtime>({ state: null, isBooting: true });
   const esRef = useRef<EventSource | null>(null);
+  const sseEverConnectedRef = useRef(false);
 
   const isLikelyUuid = useMemo(() => {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
@@ -18,21 +19,40 @@ export function useSessionRuntime(sessionId: string) {
 
   const persist = useCallback((next: SessionArtifacts) => {
     upsertSession(next);
-    setRuntime({ state: next, isBooting: false });
+    setRuntime((prev) => ({ state: next, isBooting: false, error: prev.error }));
   }, []);
+
+  const setError = useCallback((error?: string) => {
+    setRuntime((prev) => ({ ...prev, isBooting: false, error }));
+  }, []);
+
+  function formatLoadError(err: unknown): string {
+    const raw = err instanceof Error ? err.message : "Failed to load session";
+    if (raw.startsWith("API 401")) {
+      return "Session access expired (API 401). If you restarted the backend, create a new session.";
+    }
+    if (raw.startsWith("API 403")) {
+      return "You do not have access to this session (API 403).";
+    }
+    if (raw.startsWith("API 404")) {
+      return "Session not found (API 404).";
+    }
+    return raw;
+  }
 
   const mutate = useCallback((fn: (prev: SessionArtifacts) => SessionArtifacts) => {
     setRuntime((prev) => {
       if (!prev.state) return prev;
       const next = fn(prev.state);
       upsertSession(next);
-      return { state: next, isBooting: false };
+      return { state: next, isBooting: false, error: prev.error };
     });
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     let es: EventSource | null = null;
+    sseEverConnectedRef.current = false;
     // Avoid synchronous setState inside an effect body (eslint rule).
     Promise.resolve().then(() => {
       if (cancelled) return;
@@ -68,23 +88,34 @@ export function useSessionRuntime(sessionId: string) {
       .then((r) => r.json())
       .then((s: SessionArtifacts) => {
         if (cancelled) return;
+
+        const tokenParam = getSessionToken(sessionId);
         // Treat wsState as the session transport state for SSE updates.
         // (The live-audio WebSocket maintains its own local UI state.)
-        persist({ ...s, wsState: "reconnecting" });
+        persist({ ...s, wsState: tokenParam ? "reconnecting" : "offline" });
 
         // SSE stream for session.state updates.
-        const tokenParam = getSessionToken(sessionId);
-        const sseUrl = `${(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8787").replace(/\/$/, "")}/v1/sessions/${sessionId}/events${tokenParam ? `?access_token=${encodeURIComponent(tokenParam)}` : ""}`;
+        if (!tokenParam) {
+          setError("Missing session token. Live updates are disabled for this session.");
+          return;
+        }
+
+        const sseUrl = `${(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8787").replace(/\/$/, "")}/v1/sessions/${sessionId}/events?access_token=${encodeURIComponent(tokenParam)}`;
         const nextEs = new EventSource(sseUrl);
         es = nextEs;
         esRef.current = nextEs;
 
         nextEs.onopen = () => {
           if (cancelled) return;
+          sseEverConnectedRef.current = true;
+          setError(undefined);
           mutate((prev) => ({ ...prev, wsState: "connected" }));
         };
         nextEs.onerror = () => {
           if (cancelled) return;
+          if (sseEverConnectedRef.current) {
+            setError("Live updates disconnected. Reconnecting...");
+          }
           mutate((prev) => ({ ...prev, wsState: "reconnecting" }));
         };
 
@@ -92,8 +123,7 @@ export function useSessionRuntime(sessionId: string) {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : "Failed to load session";
-        setRuntime({ state: null, isBooting: false, error: msg });
+        setRuntime({ state: null, isBooting: false, error: formatLoadError(err) });
       });
 
     return () => {
@@ -104,7 +134,7 @@ export function useSessionRuntime(sessionId: string) {
       }
       esRef.current = null;
     };
-  }, [isLikelyUuid, mutate, persist, sessionId]);
+  }, [isLikelyUuid, mutate, persist, sessionId, setError]);
 
   const startAnalysis = useCallback(async () => {
     await apiFetch(`/v1/sessions/${sessionId}/analyze`, { method: "POST", token: getSessionToken(sessionId) });
