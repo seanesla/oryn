@@ -12,6 +12,7 @@ import {
   classifyDisagreement,
   buildEvidenceCards,
   optimizeChoiceSet,
+  validateFetchUrl,
 } from "@oryn/tools";
 
 export const liveFunctionDeclarations: FunctionDeclaration[] = [
@@ -194,6 +195,13 @@ export async function runLiveTool(input: {
   if (name === "oryn_fetch_and_extract") {
     const url = typeof args?.url === "string" ? args.url : undefined;
     if (!url) return { error: "url is required" };
+
+    try {
+      // Defense-in-depth: validate URL before fetching
+      await validateFetchUrl(url);
+    } catch (err) {
+      return { error: `URL validation failed: ${err instanceof Error ? err.message : "invalid URL"}` };
+    }
 
     try {
       const content = await fetchAndExtract(url);
