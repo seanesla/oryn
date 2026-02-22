@@ -22,17 +22,21 @@ test("SSE emits session updates during analysis", async () => {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ mode: "co-reading", url: "https://example.com/article" }),
   });
-  const session = (await createRes.json()) as any;
+  const { session, accessToken } = (await createRes.json()) as any;
 
   const controller = new AbortController();
   const abortTimer = setTimeout(() => controller.abort(), 7_000);
-  const sseRes = await fetch(`${baseUrl}/v1/sessions/${session.sessionId}/events`, {
-    signal: controller.signal,
-  });
+  const sseRes = await fetch(
+    `${baseUrl}/v1/sessions/${session.sessionId}/events?access_token=${encodeURIComponent(accessToken)}`,
+    { signal: controller.signal },
+  );
   expect(sseRes.status).toBe(200);
 
   // Kick off analysis after SSE is connected.
-  const analyzeRes = await fetch(`${baseUrl}/v1/sessions/${session.sessionId}/analyze`, { method: "POST" });
+  const analyzeRes = await fetch(`${baseUrl}/v1/sessions/${session.sessionId}/analyze`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
   expect(analyzeRes.status).toBe(202);
 
   const events = await readSseEvents({ res: sseRes, maxEvents: 20, timeoutMs: 6_000 });
@@ -50,9 +54,6 @@ test("SSE emits session updates during analysis", async () => {
   const anyBuilding = states.some((s: any) => s.pipeline?.evidenceBuilding === true);
   expect(anyBuilding).toBe(true);
 
-  // The SSE stream includes the initial session snapshot where
-  // `evidenceBuilding` is false and artifacts are empty. Find the *post-analysis*
-  // state instead of the first `false`.
   const done = [...states]
     .reverse()
     .find((s: any) => s.pipeline?.evidenceBuilding === false && (s.evidenceCards?.length ?? 0) > 0);

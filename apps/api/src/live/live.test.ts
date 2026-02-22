@@ -22,9 +22,9 @@ test("Live WS connects and reports missing backend key", async () => {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ mode: "co-reading", url: "https://example.com/article" }),
   });
-  const session = (await createRes.json()) as any;
+  const { session, accessToken } = (await createRes.json()) as any;
 
-  const wsUrl = baseUrl.replace(/^http/, "ws") + `/v1/sessions/${session.sessionId}/live`;
+  const wsUrl = baseUrl.replace(/^http/, "ws") + `/v1/sessions/${session.sessionId}/live?access_token=${encodeURIComponent(accessToken)}`;
   const ws = new WebSocket(wsUrl);
 
   const messages: Array<any> = [];
@@ -53,7 +53,7 @@ test("Live WS connects and reports missing backend key", async () => {
 
   expect(messages.some((m) => m?.type === "session.state")).toBe(true);
   const err = messages.find((m) => m?.type === "error");
-  expect(err?.message).toMatch(/Missing GEMINI_API_KEY|Live voice is disabled/);
+  expect(err?.message).toBe("Voice backend unavailable");
 
   ws.close();
 });
