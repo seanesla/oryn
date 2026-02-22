@@ -93,6 +93,10 @@ export async function fetchAndExtract(url: string, timeoutMs = 2_500): Promise<E
   await validateFetchUrl(url);
   const res = await fetchFollowingSafeRedirects(url, timeoutMs);
 
+  if (!res.ok) {
+    throw new Error(`Fetch failed: ${res.status}${res.statusText ? ` ${res.statusText}` : ""}`);
+  }
+
   // Size cap: check Content-Length header first, then stream with limit
   const contentLength = res.headers.get("content-length");
   if (contentLength && Number(contentLength) > MAX_RESPONSE_BYTES) {
@@ -116,14 +120,14 @@ export async function fetchAndExtract(url: string, timeoutMs = 2_500): Promise<E
     chunks.push(value);
   }
 
-  const html = new TextDecoder().decode(
-    chunks.reduce((acc, chunk) => {
-      const merged = new Uint8Array(acc.length + chunk.length);
-      merged.set(acc);
-      merged.set(chunk, acc.length);
-      return merged;
-    }, new Uint8Array(0))
-  );
+  const merged = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  const html = new TextDecoder().decode(merged);
 
   const title = (() => {
     const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);

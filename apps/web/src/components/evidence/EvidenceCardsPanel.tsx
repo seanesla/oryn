@@ -15,6 +15,7 @@ import {
 import type { DisagreementType, EvidenceCard, SessionArtifacts } from "@/lib/contracts";
 import type { RuntimeActions } from "@/lib/runtimeTypes";
 import { cn } from "@/lib/cn";
+import { sanitizeExternalHref } from "@/lib/sanitizeHref";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -22,15 +23,6 @@ import { Card } from "@/components/ui/Card";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/Dialog";
 import { Divider } from "@/components/ui/Divider";
 import { Input } from "@/components/ui/Input";
-
-function sanitizeHref(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.protocol === "https:" || u.protocol === "http:" ? url : "#";
-  } catch {
-    return "#";
-  }
-}
 
 /* ── Dispute type color stripe mapping ── */
 
@@ -500,9 +492,9 @@ export function EvidenceCardsPanel({
                           <div className="mt-1">
                             <a
                               className="text-[color:var(--muted-fg)] underline decoration-[color:color-mix(in_oklab,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[color:var(--fg)]"
-                              href={sanitizeHref(e.url)}
+                              href={sanitizeExternalHref(e.url)}
                               target="_blank"
-                              rel="noreferrer"
+                              rel="noopener noreferrer"
                             >
                               {e.domain ?? e.url}
                             </a>
@@ -520,9 +512,9 @@ export function EvidenceCardsPanel({
                           <div className="mt-1">
                             <a
                               className="text-[color:var(--muted-fg)] underline decoration-[color:color-mix(in_oklab,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[color:var(--fg)]"
-                              href={sanitizeHref(e.url)}
+                              href={sanitizeExternalHref(e.url)}
                               target="_blank"
-                              rel="noreferrer"
+                              rel="noopener noreferrer"
                             >
                               {e.domain ?? e.url}
                             </a>

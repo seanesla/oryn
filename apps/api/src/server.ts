@@ -9,11 +9,36 @@ import { createSessionEventBus } from "./core/eventBus";
 import { createFirestoreSessionStore } from "./core/firestoreStore";
 import { resolveSessionAuthSecret } from "./middleware/auth";
 
+function redactAccessTokenFromUrl(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl, "http://localhost");
+    u.searchParams.delete("access_token");
+    return `${u.pathname}${u.search}`;
+  } catch {
+    return rawUrl.replace(/([?&])access_token=[^&]+/g, "$1access_token=[REDACTED]");
+  }
+}
+
 export async function buildServer() {
+  const trustProxyHops = Number(process.env.ORYN_TRUST_PROXY_HOPS ?? 1);
+  const trustProxy = Number.isFinite(trustProxyHops) && trustProxyHops > 0 ? Math.floor(trustProxyHops) : false;
+
   const server = Fastify({
-    trustProxy: true,
+    trustProxy,
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
+      serializers: {
+        req(req) {
+          return {
+            method: req.method,
+            url: redactAccessTokenFromUrl(req.url),
+            hostname: req.hostname,
+            ip: req.ip,
+            remoteAddress: req.socket?.remoteAddress,
+            remotePort: req.socket?.remotePort,
+          };
+        },
+      },
       transport:
         process.env.NODE_ENV === "development"
           ? {
@@ -51,7 +76,7 @@ export async function buildServer() {
   const storeType = (process.env.SESSION_STORE ?? "memory").toLowerCase();
   const store = storeType === "firestore" ? createFirestoreSessionStore() : createMemorySessionStore();
   const bus = createSessionEventBus();
-  const secret = resolveSessionAuthSecret();
+  const secret = resolveSessionAuthSecret({ require: storeType === "firestore" });
 
   await registerSessionRoutes(server, { store, bus, secret });
   await registerLiveRoutes(server, secret);
