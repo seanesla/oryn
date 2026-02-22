@@ -1,3 +1,5 @@
+import "./loadEnv";
+
 import { buildServer } from "./server";
 
 const port = Number(process.env.PORT ?? 8787);
