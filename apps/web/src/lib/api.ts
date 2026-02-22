@@ -9,13 +9,17 @@ export function apiUrl(path: string) {
   return `${apiBaseUrl()}${path}`;
 }
 
-export async function apiFetch(path: string, init?: RequestInit) {
+type ApiFetchInit = RequestInit & { token?: string };
+
+export async function apiFetch(path: string, init?: ApiFetchInit) {
+  const { token, ...rest } = init ?? {};
   let res: Response;
   try {
     res = await fetch(apiUrl(path), {
-      ...init,
+      ...rest,
       headers: {
-        ...(init?.headers ?? {}),
+        ...(rest.headers ?? {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
   } catch {

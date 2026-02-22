@@ -6,6 +6,18 @@ import { readJson, writeJson } from "@/lib/storage";
 
 const SESSIONS_KEY = "oryn:sessions:v1";
 const LIST_KEY = "oryn:session_list:v1";
+const TOKENS_KEY = "oryn:tokens:v1";
+
+export function getSessionToken(sessionId: string): string | undefined {
+  const map = readJson<Record<string, string>>(TOKENS_KEY, {});
+  return map[sessionId];
+}
+
+export function setSessionToken(sessionId: string, token: string) {
+  const map = readJson<Record<string, string>>(TOKENS_KEY, {});
+  map[sessionId] = token;
+  writeJson(TOKENS_KEY, map);
+}
 
 export function defaultConstraints(): SessionConstraints {
   return {
@@ -21,23 +33,6 @@ export function listSessions(): Array<SessionListItem> {
   return readJson<Array<SessionListItem>>(LIST_KEY, []).slice(0, 10);
 }
 
-export async function refreshSessions(limit = 10): Promise<Array<SessionListItem>> {
-  const res = await apiFetch(`/v1/sessions?limit=${encodeURIComponent(String(limit))}`);
-  const list = (await res.json()) as Array<SessionListItem>;
-  const trimmed = list.slice(0, 10);
-
-  // If the API uses an in-memory store (dev / restarted backend), it can
-  // legitimately return an empty list even though the browser has local
-  // history. Don't wipe local history in that case.
-  if (trimmed.length === 0) {
-    const cached = readJson<Array<SessionListItem>>(LIST_KEY, []).slice(0, 10);
-    if (cached.length > 0) return cached;
-  }
-
-  writeJson(LIST_KEY, trimmed);
-  return trimmed;
-}
-
 export function getSession(sessionId: string): SessionArtifacts | null {
   const map = readJson<Record<string, SessionArtifacts>>(SESSIONS_KEY, {});
   return map[sessionId] ?? null;
@@ -45,7 +40,7 @@ export function getSession(sessionId: string): SessionArtifacts | null {
 
 export async function fetchSession(sessionId: string): Promise<SessionArtifacts | null> {
   try {
-    const res = await apiFetch(`/v1/sessions/${sessionId}`);
+    const res = await apiFetch(`/v1/sessions/${sessionId}`, { token: getSessionToken(sessionId) });
     const s = (await res.json()) as SessionArtifacts;
     upsertSession(s);
     return s;
@@ -91,7 +86,8 @@ export async function createSession(input: {
       constraints,
     }),
   });
-  const created = (await res.json()) as SessionArtifacts;
+  const { session: created, accessToken } = (await res.json()) as { session: SessionArtifacts; accessToken: string };
+  setSessionToken(created.sessionId, accessToken);
   upsertSession(created);
   return created;
 }

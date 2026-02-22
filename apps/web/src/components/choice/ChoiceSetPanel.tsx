@@ -14,6 +14,15 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Divider } from "@/components/ui/Divider";
 
+function sanitizeHref(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:" ? url : "#";
+  } catch {
+    return "#";
+  }
+}
+
 export function ChoiceSetPanel({
   session,
   actions,
@@ -54,7 +63,7 @@ export function ChoiceSetPanel({
           <motion.a
             layout
             key={`${i.id}-${i.reason}`}
-            href={i.url}
+            href={sanitizeHref(i.url)}
             target="_blank"
             rel="noreferrer"
             initial={shouldReduceMotion ? false : { opacity: 0, y: 8, filter: "blur(8px)" }}

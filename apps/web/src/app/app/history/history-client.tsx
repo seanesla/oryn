@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { ArrowRight, Clock, Search } from "lucide-react";
 
-import { listSessions, refreshSessions } from "@/lib/sessions";
+import { listSessions } from "@/lib/sessions";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -20,18 +20,11 @@ export function HistoryClient() {
 
   useEffect(() => {
     let cancelled = false;
+    /* The list endpoint no longer exists; use local cache only. */
     Promise.resolve().then(() => {
       if (cancelled) return;
       setSessions(listSessions());
     });
-    refreshSessions(10)
-      .then((list) => {
-        if (cancelled) return;
-        setSessions(list);
-      })
-      .catch(() => {
-        // Keep cached list.
-      });
 
     return () => {
       cancelled = true;
