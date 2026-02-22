@@ -18,3 +18,5 @@ export { buildClusters } from "./build-clusters";
 export { optimizeChoiceSet } from "./optimize-choice-set";
 
 export { TTLCache } from "./cache";
+
+export { validateFetchUrl, isPrivateIp } from "./url-guard";
