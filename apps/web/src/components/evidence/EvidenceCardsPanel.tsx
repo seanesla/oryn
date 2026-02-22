@@ -23,6 +23,15 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle, Dia
 import { Divider } from "@/components/ui/Divider";
 import { Input } from "@/components/ui/Input";
 
+function sanitizeHref(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:" ? url : "#";
+  } catch {
+    return "#";
+  }
+}
+
 /* ── Dispute type color stripe mapping ── */
 
 const disputeStripeColor: Record<DisagreementType, string> = {
@@ -491,7 +500,7 @@ export function EvidenceCardsPanel({
                           <div className="mt-1">
                             <a
                               className="text-[color:var(--muted-fg)] underline decoration-[color:color-mix(in_oklab,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[color:var(--fg)]"
-                              href={e.url}
+                              href={sanitizeHref(e.url)}
                               target="_blank"
                               rel="noreferrer"
                             >
@@ -511,7 +520,7 @@ export function EvidenceCardsPanel({
                           <div className="mt-1">
                             <a
                               className="text-[color:var(--muted-fg)] underline decoration-[color:color-mix(in_oklab,var(--accent)_40%,transparent)] underline-offset-2 hover:text-[color:var(--fg)]"
-                              href={e.url}
+                              href={sanitizeHref(e.url)}
                               target="_blank"
                               rel="noreferrer"
                             >

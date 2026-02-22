@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SessionArtifacts, SessionConstraints, TranscriptChunk, WsState } from "@/lib/contracts";
 import { apiFetch } from "@/lib/api";
 import { snapshotToMarkdown } from "@/lib/download";
-import { upsertSession } from "@/lib/sessions";
+import { getSessionToken, upsertSession } from "@/lib/sessions";
 import type { Runtime, RuntimeActions } from "@/lib/runtimeTypes";
 
 export function useSessionRuntime(sessionId: string) {
@@ -64,7 +64,7 @@ export function useSessionRuntime(sessionId: string) {
       }
     };
 
-    apiFetch(`/v1/sessions/${sessionId}`)
+    apiFetch(`/v1/sessions/${sessionId}`, { token: getSessionToken(sessionId) })
       .then((r) => r.json())
       .then((s: SessionArtifacts) => {
         if (cancelled) return;
@@ -73,9 +73,9 @@ export function useSessionRuntime(sessionId: string) {
         persist({ ...s, wsState: "reconnecting" });
 
         // SSE stream for session.state updates.
-        const nextEs = new EventSource(
-          `${(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8787").replace(/\/$/, "")}/v1/sessions/${sessionId}/events`
-        );
+        const tokenParam = getSessionToken(sessionId);
+        const sseUrl = `${(process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8787").replace(/\/$/, "")}/v1/sessions/${sessionId}/events${tokenParam ? `?access_token=${encodeURIComponent(tokenParam)}` : ""}`;
+        const nextEs = new EventSource(sseUrl);
         es = nextEs;
         esRef.current = nextEs;
 
@@ -107,12 +107,12 @@ export function useSessionRuntime(sessionId: string) {
   }, [isLikelyUuid, mutate, persist, sessionId]);
 
   const startAnalysis = useCallback(async () => {
-    await apiFetch(`/v1/sessions/${sessionId}/analyze`, { method: "POST" });
+    await apiFetch(`/v1/sessions/${sessionId}/analyze`, { method: "POST", token: getSessionToken(sessionId) });
   }, [sessionId]);
 
   const togglePin = useCallback(
     async (cardId: string) => {
-      const res = await apiFetch(`/v1/sessions/${sessionId}/cards/${cardId}/pin`, { method: "POST" });
+      const res = await apiFetch(`/v1/sessions/${sessionId}/cards/${cardId}/pin`, { method: "POST", token: getSessionToken(sessionId) });
       const next = (await res.json()) as SessionArtifacts;
       persist(next);
     },
@@ -120,7 +120,7 @@ export function useSessionRuntime(sessionId: string) {
   );
 
   const regenerateChoiceSet = useCallback(async () => {
-    const res = await apiFetch(`/v1/sessions/${sessionId}/choice-set/regenerate`, { method: "POST" });
+    const res = await apiFetch(`/v1/sessions/${sessionId}/choice-set/regenerate`, { method: "POST", token: getSessionToken(sessionId) });
     const next = (await res.json()) as SessionArtifacts;
     persist(next);
   }, [persist, sessionId]);
@@ -131,6 +131,7 @@ export function useSessionRuntime(sessionId: string) {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(constraints),
+        token: getSessionToken(sessionId),
       });
       const next = (await res.json()) as SessionArtifacts;
       persist(next);
@@ -179,6 +180,7 @@ export function useSessionRuntime(sessionId: string) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(toSend),
+        token: getSessionToken(sessionId),
       });
       const next = (await res.json()) as SessionArtifacts;
       persist(next);

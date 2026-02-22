@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowRight, Clock } from "lucide-react";
 
 import type { SessionListItem } from "@/lib/contracts";
-import { listSessions, refreshSessions } from "@/lib/sessions";
+import { listSessions } from "@/lib/sessions";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -211,16 +211,10 @@ export function RecentSessionCards() {
   const [sessions, setSessions] = useState<Array<SessionListItem> | null>(null);
 
   useEffect(() => {
-    /* Show cached list immediately while fresh data loads */
+    /* Show local list (the list endpoint no longer exists) */
     const cached = listSessions();
     // Avoid sync setState in effect body (eslint rule).
     Promise.resolve().then(() => setSessions(cached));
-
-    refreshSessions(8)
-      .then((list) => setSessions(list))
-      .catch(() => {
-        /* Keep the cached list on error */
-      });
   }, []);
 
   const isLoading = sessions === null;

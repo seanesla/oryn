@@ -14,6 +14,7 @@ import {
 
 import type { SessionArtifacts, TranscriptChunk, WsState } from "@/lib/contracts";
 import { apiBaseUrl } from "@/lib/api";
+import { getSessionToken } from "@/lib/sessions";
 import { cn } from "@/lib/cn";
 
 import { Card } from "@/components/ui/Card";
@@ -158,7 +159,9 @@ export function LiveAudioConsole({
       : http.startsWith("http://")
         ? `ws://${http.slice("http://".length)}`
         : http;
-    return `${wsBase}/v1/sessions/${sessionId}/live`;
+    const token = getSessionToken(sessionId);
+    const qs = token ? `?access_token=${encodeURIComponent(token)}` : "";
+    return `${wsBase}/v1/sessions/${sessionId}/live${qs}`;
   }
 
   function parsePcmRate(mimeType: string): number {
