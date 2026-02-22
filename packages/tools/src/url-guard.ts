@@ -60,13 +60,15 @@ export async function validateFetchUrl(raw: string): Promise<URL> {
 
   // DNS resolution check
   try {
-    const { address } = await lookup(url.hostname);
-    if (isPrivateIp(address)) {
-      throw new Error(`DNS resolved to private IP: ${address}`);
+    const results = await lookup(url.hostname, { all: true });
+    for (const { address } of results) {
+      if (isPrivateIp(address)) {
+        throw new Error(`DNS resolved to private IP: ${address}`);
+      }
     }
   } catch (err: unknown) {
-    if (err instanceof Error && err.message.startsWith("Blocked") || err instanceof Error && err.message.startsWith("DNS resolved")) {
-      throw err;
+    if (err instanceof Error) {
+      if (err.message.startsWith("Blocked") || err.message.startsWith("DNS resolved")) throw err;
     }
     // DNS failures are OK — the fetch itself will fail
   }

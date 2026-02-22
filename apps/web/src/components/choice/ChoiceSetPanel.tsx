@@ -8,20 +8,12 @@ import { RefreshCcw, ExternalLink } from "lucide-react";
 import type { SessionArtifacts } from "@/lib/contracts";
 import type { RuntimeActions } from "@/lib/runtimeTypes";
 import { cn } from "@/lib/cn";
+import { sanitizeExternalHref } from "@/lib/sanitizeHref";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Divider } from "@/components/ui/Divider";
-
-function sanitizeHref(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.protocol === "https:" || u.protocol === "http:" ? url : "#";
-  } catch {
-    return "#";
-  }
-}
 
 export function ChoiceSetPanel({
   session,
@@ -63,9 +55,9 @@ export function ChoiceSetPanel({
           <motion.a
             layout
             key={`${i.id}-${i.reason}`}
-            href={sanitizeHref(i.url)}
+            href={sanitizeExternalHref(i.url)}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             initial={shouldReduceMotion ? false : { opacity: 0, y: 8, filter: "blur(8px)" }}
             animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, filter: "blur(6px)" }}

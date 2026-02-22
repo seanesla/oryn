@@ -15,6 +15,9 @@ import { makeSystemInstruction } from "@oryn/agent";
 import { rateLimitHook } from "../middleware/rate-limit";
 import { requireSessionAuth } from "../middleware/auth";
 
+const MAX_TRANSCRIPT_CHUNKS = 500;
+const MAX_TRANSCRIPT_TEXT_CHARS = 10_000;
+
 function safeJsonParse(input: string): unknown {
   try {
     return JSON.parse(input) as unknown;
@@ -36,7 +39,7 @@ const liveClientMessageSchema = z.discriminatedUnion("type", [
     chunk: z.object({
       id: z.string(),
       speaker: z.literal("user"),
-      text: z.string(),
+      text: z.string().min(1).max(MAX_TRANSCRIPT_TEXT_CHARS),
       timestampMs: z.number(),
       isPartial: z.boolean().optional(),
       turnId: z.string(),
@@ -53,9 +56,31 @@ function makeChunkId(prefix: string) {
 }
 
 function appendTranscript(prev: SessionArtifacts, chunk: TranscriptChunk): SessionArtifacts {
+  const safeText = chunk.text.length > MAX_TRANSCRIPT_TEXT_CHARS
+    ? chunk.text.slice(0, MAX_TRANSCRIPT_TEXT_CHARS)
+    : chunk.text;
+  const nextChunk = safeText === chunk.text ? chunk : { ...chunk, text: safeText };
+
+  const existingFromEnd = [...prev.transcript].reverse().findIndex(
+    (c) => c.turnId === nextChunk.turnId && c.speaker === nextChunk.speaker,
+  );
+
+  let nextTranscript: Array<TranscriptChunk>;
+  if (existingFromEnd >= 0) {
+    const idx = prev.transcript.length - 1 - existingFromEnd;
+    nextTranscript = [...prev.transcript];
+    nextTranscript[idx] = nextChunk;
+  } else {
+    nextTranscript = [...prev.transcript, nextChunk];
+  }
+
+  if (nextTranscript.length > MAX_TRANSCRIPT_CHUNKS) {
+    nextTranscript = nextTranscript.slice(-MAX_TRANSCRIPT_CHUNKS);
+  }
+
   return {
     ...prev,
-    transcript: [...prev.transcript, chunk],
+    transcript: nextTranscript,
   };
 }
 
