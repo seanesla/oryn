@@ -12,6 +12,10 @@ export function useSessionRuntime(sessionId: string) {
   const [runtime, setRuntime] = useState<Runtime>({ state: null, isBooting: true });
   const esRef = useRef<EventSource | null>(null);
   const sseEverConnectedRef = useRef(false);
+  const sseTerminalErrorRef = useRef(false);
+  const sseAuthCheckInFlightRef = useRef(false);
+  const sseAuthCheckLastAtMsRef = useRef(0);
+  const sseAuthProbeTimerRef = useRef<number | null>(null);
 
   const isLikelyUuid = useMemo(() => {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId);
@@ -53,6 +57,13 @@ export function useSessionRuntime(sessionId: string) {
     let cancelled = false;
     let es: EventSource | null = null;
     sseEverConnectedRef.current = false;
+    sseTerminalErrorRef.current = false;
+    sseAuthCheckInFlightRef.current = false;
+    sseAuthCheckLastAtMsRef.current = 0;
+    if (sseAuthProbeTimerRef.current !== null) {
+      window.clearTimeout(sseAuthProbeTimerRef.current);
+      sseAuthProbeTimerRef.current = null;
+    }
     // Avoid synchronous setState inside an effect body (eslint rule).
     Promise.resolve().then(() => {
       if (cancelled) return;
@@ -108,13 +119,54 @@ export function useSessionRuntime(sessionId: string) {
         nextEs.onopen = () => {
           if (cancelled) return;
           sseEverConnectedRef.current = true;
+          sseTerminalErrorRef.current = false;
+          if (sseAuthProbeTimerRef.current !== null) {
+            window.clearTimeout(sseAuthProbeTimerRef.current);
+            sseAuthProbeTimerRef.current = null;
+          }
           setError(undefined);
           mutate((prev) => ({ ...prev, wsState: "connected" }));
         };
         nextEs.onerror = () => {
           if (cancelled) return;
+          if (sseTerminalErrorRef.current) return;
           if (sseEverConnectedRef.current) {
             setError("Live updates disconnected. Reconnecting...");
+
+            const now = Date.now();
+            const msUntilNextProbe = Math.max(0, 5_000 - (now - sseAuthCheckLastAtMsRef.current));
+            const shouldScheduleProbe =
+              !sseAuthCheckInFlightRef.current && sseAuthProbeTimerRef.current === null;
+
+            if (shouldScheduleProbe) {
+              sseAuthProbeTimerRef.current = window.setTimeout(() => {
+                sseAuthProbeTimerRef.current = null;
+                if (cancelled) return;
+                if (sseTerminalErrorRef.current) return;
+                if (sseAuthCheckInFlightRef.current) return;
+
+                sseAuthCheckInFlightRef.current = true;
+                sseAuthCheckLastAtMsRef.current = Date.now();
+
+                apiFetch(`/v1/sessions/${sessionId}`, { token: getSessionToken(sessionId) })
+                  .catch((err: unknown) => {
+                    if (cancelled) return;
+                    const raw = err instanceof Error ? err.message : "";
+                    if (!raw.startsWith("API 401") && !raw.startsWith("API 403") && !raw.startsWith("API 404")) return;
+                    sseTerminalErrorRef.current = true;
+                    setError(formatLoadError(err));
+                    mutate((prev) => ({ ...prev, wsState: "offline" }));
+                    try {
+                      nextEs.close();
+                    } catch {
+                      // ignore
+                    }
+                  })
+                  .finally(() => {
+                    sseAuthCheckInFlightRef.current = false;
+                  });
+              }, msUntilNextProbe);
+            }
           }
           mutate((prev) => ({ ...prev, wsState: "reconnecting" }));
         };
@@ -128,6 +180,10 @@ export function useSessionRuntime(sessionId: string) {
 
     return () => {
       cancelled = true;
+      if (sseAuthProbeTimerRef.current !== null) {
+        window.clearTimeout(sseAuthProbeTimerRef.current);
+        sseAuthProbeTimerRef.current = null;
+      }
       if (es) {
         es.removeEventListener("session.state", onState);
         es.close();
