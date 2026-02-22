@@ -7,9 +7,11 @@ import { registerLiveRoutes } from "./live/routes";
 import { createMemorySessionStore } from "./core/memoryStore";
 import { createSessionEventBus } from "./core/eventBus";
 import { createFirestoreSessionStore } from "./core/firestoreStore";
+import { resolveSessionAuthSecret } from "./middleware/auth";
 
 export async function buildServer() {
   const server = Fastify({
+    trustProxy: true,
     logger: {
       level: process.env.LOG_LEVEL ?? "info",
       transport:
@@ -49,9 +51,10 @@ export async function buildServer() {
   const storeType = (process.env.SESSION_STORE ?? "memory").toLowerCase();
   const store = storeType === "firestore" ? createFirestoreSessionStore() : createMemorySessionStore();
   const bus = createSessionEventBus();
+  const secret = resolveSessionAuthSecret();
 
-  await registerSessionRoutes(server, { store, bus });
-  await registerLiveRoutes(server);
+  await registerSessionRoutes(server, { store, bus, secret });
+  await registerLiveRoutes(server, secret);
 
   return server;
 }
