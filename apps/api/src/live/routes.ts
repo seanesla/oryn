@@ -13,6 +13,7 @@ import { liveFunctionDeclarations, runLiveTool } from "./tooling";
 import { createGenAiClient } from "../genai/client";
 import { makeSystemInstruction } from "@oryn/agent";
 import { rateLimitHook } from "../middleware/rate-limit";
+import { requireSessionAuth } from "../middleware/auth";
 
 function safeJsonParse(input: string): unknown {
   try {
@@ -28,7 +29,7 @@ const liveClientMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("audio.chunk"),
     mimeType: z.literal("audio/pcm;rate=16000"),
-    dataBase64: z.string().min(1),
+    dataBase64: z.string().min(1).max(200_000),
   }),
   z.object({
     type: z.literal("transcript.user"),
@@ -58,16 +59,19 @@ function appendTranscript(prev: SessionArtifacts, chunk: TranscriptChunk): Sessi
   };
 }
 
-export async function registerLiveRoutes(server: FastifyInstance) {
+export async function registerLiveRoutes(server: FastifyInstance, secret: string) {
   server.get(
     "/v1/sessions/:id/live",
     {
       websocket: true,
-      onRequest: rateLimitHook({
-        windowMs: 60_000,
-        maxRequests: 3,
-        keyFn: (req) => `live-ws:${req.ip}`,
-      }),
+      onRequest: [
+        requireSessionAuth(secret),
+        rateLimitHook({
+          windowMs: 60_000,
+          maxRequests: 3,
+          keyFn: (req) => `live-ws:${req.ip}`,
+        }),
+      ],
     },
     async (connection, req) => {
       const ws = (connection as any)?.socket ?? (connection as any);
@@ -116,7 +120,8 @@ export async function registerLiveRoutes(server: FastifyInstance) {
         try {
           created = createGenAiClient();
         } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : "GenAI client init failed";
+          server.log.error({ err }, "GenAI client init failed");
+          const msg = "Voice backend unavailable";
           send(ws, { type: "error", message: msg });
           return null;
         }
@@ -238,7 +243,8 @@ export async function registerLiveRoutes(server: FastifyInstance) {
                       });
                       send(ws, { type: "debug", message: `tool.done ${toolName}` });
                     } catch (err: unknown) {
-                      const msg = err instanceof Error ? err.message : "tool failed";
+                      server.log.error({ err, toolName }, "tool execution failed");
+                      const msg = "Tool execution failed";
                       live.sendToolResponse({
                         functionResponses: {
                           id: toolId,
@@ -253,7 +259,8 @@ export async function registerLiveRoutes(server: FastifyInstance) {
               }
               },
               onerror: (e: any) => {
-                send(ws, { type: "error", message: e?.message ?? "live error" });
+                server.log.error({ err: e }, "Gemini Live error");
+                send(ws, { type: "error", message: "Voice backend error" });
               },
               onclose: (e: any) => {
                 send(ws, { type: "debug", message: `Gemini Live closed (${e?.code ?? "?"})` });
@@ -261,7 +268,8 @@ export async function registerLiveRoutes(server: FastifyInstance) {
             },
           });
         } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : "Gemini Live connect failed";
+          server.log.error({ err }, "Gemini Live connect failed");
+          const msg = "Voice backend unavailable";
           send(ws, { type: "error", message: msg });
           return null;
         }

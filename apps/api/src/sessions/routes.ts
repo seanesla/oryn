@@ -3,15 +3,15 @@ import { z } from "zod";
 
 import type { CreateSessionRequest, SessionSseEvent } from "@oryn/shared";
 import { makeEmptySession } from "./defaults";
-import { createMemorySessionStore } from "../core/memoryStore";
-import { createSessionEventBus } from "../core/eventBus";
 import type { SessionEventBus, SessionStore } from "../core/types";
 import { runSessionAnalysis } from "../pipeline/analyze";
 import { rateLimitHook } from "../middleware/rate-limit";
+import { generateSessionToken, requireSessionAuth } from "../middleware/auth";
 
 export type ApiDeps = {
   store: SessionStore;
   bus: SessionEventBus;
+  secret: string;
 };
 
 const createSessionSchema = z.object({
@@ -30,39 +30,43 @@ const createSessionSchema = z.object({
     .optional(),
 }) satisfies z.ZodType<CreateSessionRequest>;
 
-export async function registerSessionRoutes(server: FastifyInstance, deps?: Partial<ApiDeps>) {
-  const store = deps?.store ?? createMemorySessionStore();
-  const bus = deps?.bus ?? createSessionEventBus();
+export async function registerSessionRoutes(server: FastifyInstance, deps: ApiDeps) {
+  const { store, bus, secret } = deps;
 
   server.decorate("orynStore", store);
   server.decorate("orynBus", bus);
 
-  server.post("/v1/sessions", async (req, reply) => {
-    const parsed = createSessionSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: parsed.error.flatten() });
-    }
+  server.post(
+    "/v1/sessions",
+    { onRequest: rateLimitHook({ windowMs: 60_000, maxRequests: 10, keyFn: (req) => `create:${req.ip}` }) },
+    async (req, reply) => {
+      const parsed = createSessionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: parsed.error.flatten() });
+      }
 
-    const body = parsed.data;
-    const sessionId = globalThis.crypto?.randomUUID?.() ?? `sess_${Date.now()}`;
-    const createdAtMs = Date.now();
+      const body = parsed.data;
+      const sessionId = globalThis.crypto?.randomUUID?.() ?? `sess_${Date.now()}`;
+      const createdAtMs = Date.now();
 
-    const session = makeEmptySession({
-      sessionId,
-      createdAtMs,
-      mode: body.mode,
-      url: body.url,
-      title: body.title ?? (body.mode === "claim-check" ? "Claim check" : undefined),
-      constraints: body.constraints,
-    });
+      const session = makeEmptySession({
+        sessionId,
+        createdAtMs,
+        mode: body.mode,
+        url: body.url,
+        title: body.title ?? (body.mode === "claim-check" ? "Claim check" : undefined),
+        constraints: body.constraints,
+      });
 
-    await store.create(session);
-    bus.publish(sessionId, session);
+      await store.create(session);
+      bus.publish(sessionId, session);
 
-    return reply.code(201).send(session);
-  });
+      const accessToken = generateSessionToken(sessionId, secret);
+      return reply.code(201).send({ session, accessToken });
+    },
+  );
 
-  server.put("/v1/sessions/:id/constraints", async (req, reply) => {
+  server.put("/v1/sessions/:id/constraints", { onRequest: requireSessionAuth(secret) }, async (req, reply) => {
     const sessionId = (req.params as any).id as string;
     const session = await store.get(sessionId);
     if (!session) return reply.code(404).send({ error: "Session not found" });
@@ -78,15 +82,19 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
     return reply.send(next);
   });
 
-  server.post("/v1/sessions/:id/transcript", async (req, reply) => {
+  server.post("/v1/sessions/:id/transcript", { onRequest: requireSessionAuth(secret) }, async (req, reply) => {
     const sessionId = (req.params as any).id as string;
     const session = await store.get(sessionId);
     if (!session) return reply.code(404).send({ error: "Session not found" });
 
+    if (session.transcript.length >= 500) {
+      return reply.code(400).send({ error: "Transcript limit reached" });
+    }
+
     const chunkSchema = z.object({
       id: z.string().optional(),
       speaker: z.union([z.literal("user"), z.literal("agent")]),
-      text: z.string(),
+      text: z.string().max(10_000),
       timestampMs: z.number(),
       isPartial: z.boolean().optional(),
       turnId: z.string(),
@@ -104,7 +112,7 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
     return reply.send(next);
   });
 
-  server.post("/v1/sessions/:id/cards/:cardId/pin", async (req, reply) => {
+  server.post("/v1/sessions/:id/cards/:cardId/pin", { onRequest: requireSessionAuth(secret) }, async (req, reply) => {
     const sessionId = (req.params as any).id as string;
     const cardId = (req.params as any).cardId as string;
     const session = await store.get(sessionId);
@@ -121,7 +129,7 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
     return reply.send(next);
   });
 
-  server.post("/v1/sessions/:id/choice-set/regenerate", async (req, reply) => {
+  server.post("/v1/sessions/:id/choice-set/regenerate", { onRequest: requireSessionAuth(secret) }, async (req, reply) => {
     void req;
     const sessionId = (req.params as any).id as string;
     const session = await store.get(sessionId);
@@ -139,13 +147,7 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
     return reply.send(next);
   });
 
-  server.get("/v1/sessions", async (req, reply) => {
-    const limit = Number((req.query as any)?.limit ?? 10);
-    const list = await store.list(Number.isFinite(limit) ? Math.max(1, Math.min(50, limit)) : 10);
-    return reply.send(list);
-  });
-
-  server.get("/v1/sessions/:id", async (req, reply) => {
+  server.get("/v1/sessions/:id", { onRequest: requireSessionAuth(secret) }, async (req, reply) => {
     const sessionId = (req.params as any).id as string;
     const session = await store.get(sessionId);
     if (!session) return reply.code(404).send({ error: "Session not found" });
@@ -155,11 +157,14 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
   server.post(
     "/v1/sessions/:id/analyze",
     {
-      onRequest: rateLimitHook({
-        windowMs: 60_000,
-        maxRequests: 5,
-        keyFn: (req) => `analyze:${(req.params as any).id}`,
-      }),
+      onRequest: [
+        requireSessionAuth(secret),
+        rateLimitHook({
+          windowMs: 60_000,
+          maxRequests: 15,
+          keyFn: (req) => `analyze:${req.ip}:${(req.params as any).id}`,
+        }),
+      ],
     },
     async (req, reply) => {
       const sessionId = (req.params as any).id as string;
@@ -188,7 +193,7 @@ export async function registerSessionRoutes(server: FastifyInstance, deps?: Part
     },
   );
 
-  server.get("/v1/sessions/:id/events", async (req, reply) => {
+  server.get("/v1/sessions/:id/events", { onRequest: requireSessionAuth(secret) }, async (req, reply) => {
     const sessionId = (req.params as any).id as string;
 
     const session = await store.get(sessionId);
